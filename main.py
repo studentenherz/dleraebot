@@ -19,66 +19,71 @@ MSG_AYUDA = 'Escribe @dleraebot y luego la palabra que deseas buscar, en unos se
 
 MSG_EJEMPLO = 'CgACAgEAAxkBAAMWYSSF83hFhvdaCGrKA8S7RIogjn8AAqcCAAI3gSBFIvdrsiI9VIwgBA'
 
+MSG_NO_RESULT = 'No se han encontrado resultados.'
+
 
 # RAE queries
 
 def get_definition(s, entry):
-    r = s.get(f'https://dle.rae.es/{entry}', headers=MOZILLA_HEADERS)
-    sp = BeautifulSoup(r.text, features='html.parser')
-    definition = ''
-    for article in sp.find('div', {'id': 'resultados'}).find_all('article'):
-        definition += article.text
-    return definition
+		r = s.get(f'https://dle.rae.es/{entry}', headers=MOZILLA_HEADERS)
+		sp = BeautifulSoup(r.text, features='html.parser')
+		definition = ''
+		for article in sp.find('div', {'id': 'resultados'}).find_all('article'):
+				definition += article.text
+		return definition
 
 def get_list(s, entry):
-    r = s.get(f'https://dle.rae.es/srv/keys?q={entry}', headers=MOZILLA_HEADERS)
-    return ast.literal_eval(r.text)
+		r = s.get(f'https://dle.rae.es/srv/keys?q={entry}', headers=MOZILLA_HEADERS)
+		return ast.literal_eval(r.text)
 
 # Bot queries
 
 @bot.inline_handler(lambda query: len(query.query) > 0)
 def inline_query_handler(query):
-    try:
-        s = requests.Session()
-        l = get_list(s, query.query)
+		try:
+				s = requests.Session()
+				l = get_list(s, query.query)
 
-        res = []
-        def add_res(i, entry):
-            deffinition_text = get_definition(s, entry)
-            definition = types.InputTextMessageContent(deffinition_text)
-            r = types.InlineQueryResultArticle(i, title=entry, input_message_content=definition, description=deffinition_text)
-            res.append(r)
+				res = []
+				def add_res(i, entry):
+						deffinition_text = get_definition(s, entry)
+						definition = types.InputTextMessageContent(deffinition_text)
+						r = types.InlineQueryResultArticle(i, title=entry, input_message_content=definition, description=deffinition_text)
+						res.append(r)
 
-        threads = []
+				threads = []
 
-        for i in range(len(l)):
-            threads.append(threading.Thread(target=add_res, args=(i, l[i])))
+				for i in range(len(l)):
+						threads.append(threading.Thread(target=add_res, args=(i, l[i])))
 
-        for i in range(len(l)):
-            threads[i].start()
+				for i in range(len(l)):
+						threads[i].start()
 
-        for i in range(len(l)):
-            threads[i].join()
-            
-        if len(res) > 0:
-            bot.answer_inline_query(query.id, res)
-    except Exception as e:
-        print(e)
+				for i in range(len(l)):
+						threads[i].join()
+						
+				if len(res) == 0:
+						bot.answer_inline_query(query.id, res, switch_pm_text=MSG_NO_RESULT, switch_pm_parameter='no_result')
+				else:
+					bot.answer_inline_query(query.id, res)
+				
+		except Exception as e:
+				print(e)
 
 @bot.message_handler(commands=['start'])
 def start_handler(message):
-    bot.send_message(message.chat.id, MSG_START, parse_mode='markdown', disable_web_page_preview=True)
+		bot.send_message(message.chat.id, MSG_START, parse_mode='markdown', disable_web_page_preview=True)
 
 @bot.message_handler(commands=['ayuda'])
 def help_handler(message):
-    m = types.InlineKeyboardMarkup()
-    m.row(types.InlineKeyboardButton('Buscar definición', switch_inline_query=f''))
-    bot.send_message(message.chat.id, MSG_AYUDA, reply_markup=m)
+		m = types.InlineKeyboardMarkup()
+		m.row(types.InlineKeyboardButton('Buscar definición', switch_inline_query=f''))
+		bot.send_message(message.chat.id, MSG_AYUDA, reply_markup=m)
 
 @bot.message_handler(commands=['ejemplo'])
 def ejemplo_handelr(message):
-    bot.send_animation(message.chat.id, MSG_EJEMPLO)
+		bot.send_animation(message.chat.id, MSG_EJEMPLO)
 
 
 if __name__ == '__main__':
-    bot.polling()
+		bot.polling()
