@@ -5,6 +5,7 @@ import threading
 import telebot
 from telebot import types 
 from credentials import bot_token
+import ast
 
 bot = telebot.TeleBot(bot_token)
 
@@ -31,8 +32,7 @@ def get_definition(s, entry):
 
 def get_list(s, entry):
     r = s.get(f'https://dle.rae.es/srv/keys?q={entry}', headers=MOZILLA_HEADERS)
-    return eval(r.text)
-
+    return ast.literal_eval(r.text)
 
 # Bot queries
 
