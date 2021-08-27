@@ -12,6 +12,7 @@ bot = telebot.TeleBot(bot_token)
 
 # Definition of constants
 
+
 MOZILLA_HEADERS = {'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:91.0) Gecko/20100101 Firefox/91.0'}
 
 MSG_START = 'No es necesario que inicies un chat con el bot para que funcione, tampoco es necesario que lo agregues a ningún grupo o canal (/ayuda para más información), pero ya que estás aquí te cuento algunas cosas:\n\n - los comandos están en español porque es un bot para obtener definiciones de palabras en español 😅,\n - la imagen del bot es la bandera de España y no el isotipo de la RAE porque esta última imagen está sujeta a derechos de autor, mientras que la bandera de España que usé no.\n\nHace un tiempo le escribí a la RAE (a través de un formulario en su página web, quizá nunca me leyeron) proponiéndoles la idea de que hicieran este bot, si quisieran problablemente Telegram les diese un @ más corto como @dle y la marca de bot oficial. Puedes ver el código del bot en [GitHub](https://github.com/studentenherz/dleraebot).'
@@ -31,11 +32,41 @@ INLINE_KEYBOARD_BUSCAR_DEFINICION.row(types.InlineKeyboardButton('Buscar definic
 
 # Messasges parsing
 
+telegram_supported_tags = ['b', 'strong', 'i', 'em', 'u', 'ins', 's', 'strike', 'del', 'code', 'pre']
+
+def get_super(x):
+	normal = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-=()"
+	super_s = "ᴬᴮᶜᴰᴱᶠᴳᴴᴵᴶᴷᴸᴹᴺᴼᴾQᴿˢᵀᵁⱽᵂˣʸᶻᵃᵇᶜᵈᵉᶠᵍʰᶦʲᵏˡᵐⁿᵒᵖ۹ʳˢᵗᵘᵛʷˣʸᶻ⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾"
+	res = x.maketrans(''.join(normal), ''.join(super_s))
+	return x.translate(res)
+
 def parse_response(r):
 	sp = BeautifulSoup(r.text, features='html.parser')
 	definition = ''
 	for article in sp.find('div', {'id': 'resultados'}).find_all('article', recursive=False):
+		# # the word is presented in this format
+		# # <header> word <sup>num</sup><header>
+		# # this could probably be best made with regex	
+		# header = article.find('header')
+		# for x in header.contents:
+		# 	if x.name == 'sup':
+		# 		definition += get_super(x.text)
+		# 	elif x.name == 'None':
+		# 		definition += x
+
+		# definition += '\n'
 		
+		# the origin of the word is presented as inside a <p class="n2">
+		# origin = article.find('p', {'class': 'n2'})
+		# for x in origin.children:
+		# print(origin)
+			# if x.name == 'None':
+			# 	definition += x
+			# elif x.name in telegram_supported_tags:
+			# 	definition += x
+			# else:
+			# 	definition += x.text
+
 		definition += article.text
 	return definition
 
@@ -120,7 +151,6 @@ def pdd_handler(message):
 	bot.send_chat_action(message.chat.id, 'typing')
 	wotd = get_word_of_the_day()
 	new_message = bot.send_message(message.chat.id, MSG_PDD.format(wotd), parse_mode='HTML')
-	bot.send_chat_action(message.chat.id, 'typing')
 	definition = get_definition(wotd)
 	bot.edit_message_text(chat_id=new_message.chat.id, message_id=new_message.message_id, text=MSG_PDD.format(definition.lstrip()), parse_mode='HTML')
 
