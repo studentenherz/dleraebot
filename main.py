@@ -37,16 +37,16 @@ def parse_response(r):
 
 # RAE queries
 
-def get_definition(s, entry):
-	r = s.get(f'https://dle.rae.es/{entry}', headers=MOZILLA_HEADERS)
+def get_definition(entry):
+	r = requests.get(f'https://dle.rae.es/{entry}', headers=MOZILLA_HEADERS)
 	return parse_response(r)
 
-def get_list(s, entry):
-	r = s.get(f'https://dle.rae.es/srv/keys?q={entry}', headers=MOZILLA_HEADERS)
+def get_list(entry):
+	r = requests.get(f'https://dle.rae.es/srv/keys?q={entry}', headers=MOZILLA_HEADERS)
 	return ast.literal_eval(r.text)
 
-def get_random(s):
-	r = s.get('https://dle.rae.es/?m=random', headers=MOZILLA_HEADERS)
+def get_random():
+	r = requests.get('https://dle.rae.es/?m=random', headers=MOZILLA_HEADERS)
 	return parse_response(r)
 
 # Bot queries
@@ -54,12 +54,11 @@ def get_random(s):
 @bot.inline_handler(lambda query: len(query.query) > 0)
 def inline_query_handler(query):
 	try:
-		s = requests.Session()
-		l = get_list(s, query.query)
+		l = get_list(query.query)
 
 		res = []
 		def add_res(i, entry):
-			deffinition_text = get_definition(s, entry)
+			deffinition_text = get_definition(entry)
 			definition = types.InputTextMessageContent(deffinition_text)
 			r = types.InlineQueryResultArticle(i, title=entry, input_message_content=definition, description=deffinition_text)
 			res.append(r)
@@ -101,8 +100,7 @@ def ejemplo_handler(message):
 @bot.message_handler(commands=['aleatorio'])
 def aleatorio_handler(message):
 	bot.send_chat_action(message.chat.id, 'typing')
-	s = requests.Session()
-	text = get_random(s)
+	text = get_random()
 	bot.send_message(message.chat.id, text)
 
 
