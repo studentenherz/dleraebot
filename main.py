@@ -23,6 +23,8 @@ MSG_NO_RESULT = 'No se han encontrado resultados'
 
 MSG_NO_RESULT_LONG = 'Los siento, no se han encontrado resultados. Intenta letra por letra y quizá la palabra que buscas esté entre las opciones.'
 
+MSG_PDD = '📖 Palabra del día\n\n {}'
+
 INLINE_KEYBOARD_BUSCAR_DEFINICION = types.InlineKeyboardMarkup()
 INLINE_KEYBOARD_BUSCAR_DEFINICION.row(types.InlineKeyboardButton('Buscar definición', switch_inline_query=f''))
 
@@ -48,6 +50,12 @@ def get_list(entry):
 def get_random():
 	r = requests.get('https://dle.rae.es/?m=random', headers=MOZILLA_HEADERS)
 	return parse_response(r)
+
+def get_word_of_the_day():
+	r = requests.get('https://dle.rae.es/?m=random', headers=MOZILLA_HEADERS)
+	sp = BeautifulSoup(r.text, features='html.parser')
+	return sp.find(id='wotd').text
+
 
 # Bot queries
 
@@ -103,6 +111,14 @@ def aleatorio_handler(message):
 	text = get_random()
 	bot.send_message(message.chat.id, text)
 
+@bot.message_handler(commands=['pdd'])
+def pdd_handler(message):
+	bot.send_chat_action(message.chat.id, 'typing')
+	wotd = get_word_of_the_day()
+	new_message = bot.send_message(message.chat.id, MSG_PDD.format(wotd), parse_mode='HTML')
+	bot.send_chat_action(message.chat.id, 'typing')
+	definition = get_definition(wotd)
+	bot.edit_message_text(chat_id=new_message.chat.id, message_id=new_message.message_id, text=MSG_PDD.format(definition.lstrip()), parse_mode='HTML')
 
 if __name__ == '__main__':
 	bot.polling()
