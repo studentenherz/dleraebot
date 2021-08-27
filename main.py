@@ -26,69 +26,85 @@ MSG_NO_RESULT_LONG = 'Los siento, no se han encontrado resultados. Intenta letra
 INLINE_KEYBOARD_BUSCAR_DEFINICION = types.InlineKeyboardMarkup()
 INLINE_KEYBOARD_BUSCAR_DEFINICION.row(types.InlineKeyboardButton('Buscar definición', switch_inline_query=f''))
 
+# Messasges parsing
+
+def parse_response(r):
+	sp = BeautifulSoup(r.text, features='html.parser')
+	definition = ''
+	for article in sp.find('div', {'id': 'resultados'}).find_all('article'):
+		definition += article.text
+	return definition
+
 # RAE queries
 
 def get_definition(s, entry):
-    r = s.get(f'https://dle.rae.es/{entry}', headers=MOZILLA_HEADERS)
-    sp = BeautifulSoup(r.text, features='html.parser')
-    definition = ''
-    for article in sp.find('div', {'id': 'resultados'}).find_all('article'):
-        definition += article.text
-    return definition
+	r = s.get(f'https://dle.rae.es/{entry}', headers=MOZILLA_HEADERS)
+	return parse_response(r)
 
 def get_list(s, entry):
-    r = s.get(f'https://dle.rae.es/srv/keys?q={entry}', headers=MOZILLA_HEADERS)
-    return ast.literal_eval(r.text)
+	r = s.get(f'https://dle.rae.es/srv/keys?q={entry}', headers=MOZILLA_HEADERS)
+	return ast.literal_eval(r.text)
+
+def get_random(s):
+	r = s.get('https://dle.rae.es/?m=random', headers=MOZILLA_HEADERS)
+	return parse_response(r)
 
 # Bot queries
 
 @bot.inline_handler(lambda query: len(query.query) > 0)
 def inline_query_handler(query):
-    try:
-        s = requests.Session()
-        l = get_list(s, query.query)
+	try:
+		s = requests.Session()
+		l = get_list(s, query.query)
 
-        res = []
-        def add_res(i, entry):
-            deffinition_text = get_definition(s, entry)
-            definition = types.InputTextMessageContent(deffinition_text)
-            r = types.InlineQueryResultArticle(i, title=entry, input_message_content=definition, description=deffinition_text)
-            res.append(r)
+		res = []
+		def add_res(i, entry):
+			deffinition_text = get_definition(s, entry)
+			definition = types.InputTextMessageContent(deffinition_text)
+			r = types.InlineQueryResultArticle(i, title=entry, input_message_content=definition, description=deffinition_text)
+			res.append(r)
 
-        threads = []
+		threads = []
 
-        for i in range(len(l)):
-            threads.append(threading.Thread(target=add_res, args=(i, l[i])))
+		for i in range(len(l)):
+			threads.append(threading.Thread(target=add_res, args=(i, l[i])))
 
-        for i in range(len(l)):
-            threads[i].start()
+		for i in range(len(l)):
+			threads[i].start()
 
-        for i in range(len(l)):
-            threads[i].join()
-            
-        if len(res) == 0:
-            bot.answer_inline_query(query.id, res, switch_pm_text=MSG_NO_RESULT, switch_pm_parameter='no_result')
-        else:
-          bot.answer_inline_query(query.id, res)
-        
-    except Exception as e:
-        print(e)
+		for i in range(len(l)):
+			threads[i].join()
+			
+		if len(res) == 0:
+			bot.answer_inline_query(query.id, res, switch_pm_text=MSG_NO_RESULT, switch_pm_parameter='no_result')
+		else:
+			bot.answer_inline_query(query.id, res)
+		
+	except Exception as e:
+		print(e)
 
 @bot.message_handler(commands=['start'])
 def start_handler(message):
-    if 'no_result' in message.text:
-        bot.send_message(message.chat.id, MSG_NO_RESULT_LONG, parse_mode='markdown', disable_web_page_preview=True, reply_markup=INLINE_KEYBOARD_BUSCAR_DEFINICION)
-    else:
-        bot.send_message(message.chat.id, MSG_START, parse_mode='markdown', disable_web_page_preview=True)
+	if 'no_result' in message.text:
+		bot.send_message(message.chat.id, MSG_NO_RESULT_LONG, parse_mode='markdown', disable_web_page_preview=True, reply_markup=INLINE_KEYBOARD_BUSCAR_DEFINICION)
+	else:
+		bot.send_message(message.chat.id, MSG_START, parse_mode='markdown', disable_web_page_preview=True)
 
 @bot.message_handler(commands=['ayuda'])
 def help_handler(message):
-    bot.send_message(message.chat.id, MSG_AYUDA, reply_markup=INLINE_KEYBOARD_BUSCAR_DEFINICION)
+	bot.send_message(message.chat.id, MSG_AYUDA, reply_markup=INLINE_KEYBOARD_BUSCAR_DEFINICION)
 
 @bot.message_handler(commands=['ejemplo'])
 def ejemplo_handler(message):
-    bot.send_animation(message.chat.id, MSG_EJEMPLO)
+	bot.send_animation(message.chat.id, MSG_EJEMPLO)
+
+@bot.message_handler(commands=['aleatorio'])
+def aleatorio_handler(message):
+	bot.send_chat_action(message.chat.id, 'typing')
+	s = requests.Session()
+	text = get_random(s)
+	bot.send_message(message.chat.id, text)
 
 
 if __name__ == '__main__':
-    bot.polling()
+	bot.polling()
