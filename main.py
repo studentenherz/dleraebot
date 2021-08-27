@@ -44,29 +44,6 @@ def parse_response(r):
 	sp = BeautifulSoup(r.text, features='html.parser')
 	definition = ''
 	for article in sp.find('div', {'id': 'resultados'}).find_all('article', recursive=False):
-		# # the word is presented in this format
-		# # <header> word <sup>num</sup><header>
-		# # this could probably be best made with regex	
-		# header = article.find('header')
-		# for x in header.contents:
-		# 	if x.name == 'sup':
-		# 		definition += get_super(x.text)
-		# 	elif x.name == 'None':
-		# 		definition += x
-
-		# definition += '\n'
-		
-		# the origin of the word is presented as inside a <p class="n2">
-		# origin = article.find('p', {'class': 'n2'})
-		# for x in origin.children:
-		# print(origin)
-			# if x.name == 'None':
-			# 	definition += x
-			# elif x.name in telegram_supported_tags:
-			# 	definition += x
-			# else:
-			# 	definition += x.text
-
 		definition += article.text
 	return definition
 
