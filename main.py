@@ -86,7 +86,7 @@ def help_handler(message):
     bot.send_message(message.chat.id, MSG_AYUDA, reply_markup=INLINE_KEYBOARD_BUSCAR_DEFINICION)
 
 @bot.message_handler(commands=['ejemplo'])
-def ejemplo_handelr(message):
+def ejemplo_handler(message):
     bot.send_animation(message.chat.id, MSG_EJEMPLO)
 
 
