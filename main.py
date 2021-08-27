@@ -31,7 +31,7 @@ INLINE_KEYBOARD_BUSCAR_DEFINICION.row(types.InlineKeyboardButton('Buscar definic
 def parse_response(r):
 	sp = BeautifulSoup(r.text, features='html.parser')
 	definition = ''
-	for article in sp.find('div', {'id': 'resultados'}).find_all('article'):
+	for article in sp.find('div', {'id': 'resultados'}).find_all('article', recursive=False):
 		definition += article.text
 	return definition
 
