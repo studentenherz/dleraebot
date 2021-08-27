@@ -3,7 +3,8 @@ import requests
 from bs4 import BeautifulSoup
 import threading
 import telebot
-from telebot import types 
+from telebot import types
+from telebot.util import MAX_MESSAGE_LENGTH 
 from credentials import bot_token
 import ast
 
@@ -34,6 +35,7 @@ def parse_response(r):
 	sp = BeautifulSoup(r.text, features='html.parser')
 	definition = ''
 	for article in sp.find('div', {'id': 'resultados'}).find_all('article', recursive=False):
+		
 		definition += article.text
 	return definition
 
@@ -67,6 +69,8 @@ def inline_query_handler(query):
 		res = []
 		def add_res(i, entry):
 			deffinition_text = get_definition(entry)
+			if len(deffinition_text) > MAX_MESSAGE_LENGTH:
+					deffinition_text = deffinition_text[:MAX_MESSAGE_LENGTH]
 			definition = types.InputTextMessageContent(deffinition_text)
 			r = types.InlineQueryResultArticle(i, title=entry, input_message_content=definition, description=deffinition_text)
 			res.append(r)
