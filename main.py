@@ -1,4 +1,5 @@
 import types
+import bs4
 import requests
 from bs4 import BeautifulSoup
 import threading
@@ -40,11 +41,25 @@ def get_super(x):
 	res = x.maketrans(''.join(normal), ''.join(super_s))
 	return x.translate(res)
 
+def recursive_unwrap(tag):
+	if (type(tag) == bs4.element.Tag):
+		fstr = ''
+		for x in tag.contents:
+			if x.name in telegram_supported_tags:
+				fstr += f'<{x.name}>{recursive_unwrap(x)}</{x.name}>'
+			elif x.name == 'sup':
+				fstr += get_super(x.string)
+			else:
+				fstr += recursive_unwrap(x)
+		return fstr
+	else:
+		return tag.string
+
 def parse_response(r):
 	sp = BeautifulSoup(r.text, features='html.parser')
 	definition = ''
 	for article in sp.find('div', {'id': 'resultados'}).find_all('article', recursive=False):
-		definition += article.text
+		definition += recursive_unwrap(article)
 	return definition
 
 # RAE queries
@@ -66,7 +81,6 @@ def get_word_of_the_day():
 	sp = BeautifulSoup(r.text, features='html.parser')
 	return sp.find(id='wotd').text
 
-
 # Bot queries
 
 @bot.inline_handler(lambda query: len(query.query) > 0)
@@ -79,7 +93,7 @@ def inline_query_handler(query):
 			deffinition_text = get_definition(entry)
 			if len(deffinition_text) > MAX_MESSAGE_LENGTH:
 					deffinition_text = deffinition_text[:MAX_MESSAGE_LENGTH]
-			definition = types.InputTextMessageContent(deffinition_text)
+			definition = types.InputTextMessageContent(deffinition_text, parse_mode='HTML')
 			r = types.InlineQueryResultArticle(i, title=entry, input_message_content=definition, description=deffinition_text)
 			res.append(r)
 
@@ -121,7 +135,7 @@ def ejemplo_handler(message):
 def aleatorio_handler(message):
 	bot.send_chat_action(message.chat.id, 'typing')
 	text = get_random()
-	bot.send_message(message.chat.id, text)
+	bot.send_message(message.chat.id, text, parse_mode='HTML')
 
 @bot.message_handler(commands=['pdd'])
 def pdd_handler(message):
