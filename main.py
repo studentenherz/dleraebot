@@ -77,7 +77,7 @@ def get_random():
 	return parse_response(r)
 
 def get_word_of_the_day():
-	r = requests.get('https://dle.rae.es/?m=random', headers=MOZILLA_HEADERS)
+	r = requests.get('https://dle.rae.es/', headers=MOZILLA_HEADERS)
 	sp = BeautifulSoup(r.text, features='html.parser')
 	return sp.find(id='wotd').text
 
@@ -146,4 +146,4 @@ def pdd_handler(message):
 	bot.edit_message_text(chat_id=new_message.chat.id, message_id=new_message.message_id, text=MSG_PDD.format(definition.lstrip()), parse_mode='HTML')
 
 if __name__ == '__main__':
-	bot.polling()
+	bot.infinity_polling()
