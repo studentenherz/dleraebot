@@ -3,6 +3,8 @@ import bs4
 import requests
 from bs4 import BeautifulSoup
 import threading
+from requests.api import request
+from requests.models import RequestHooksMixin
 import telebot
 from telebot import types
 from telebot.util import MAX_MESSAGE_LENGTH 
@@ -31,7 +33,7 @@ MSG_PDD = '📖 Palabra del día\n\n {}'
 INLINE_KEYBOARD_BUSCAR_DEFINICION = types.InlineKeyboardMarkup()
 INLINE_KEYBOARD_BUSCAR_DEFINICION.row(types.InlineKeyboardButton('Buscar definición', switch_inline_query=f''))
 
-# Messasges parsing
+# Messages parsing
 
 telegram_supported_tags = ['b', 'strong', 'i', 'em', 'u', 'ins', 's', 'strike', 'del', 'code', 'pre']
 
@@ -65,7 +67,7 @@ def parse_response(r):
 # RAE queries
 
 def get_definition(entry):
-	r = requests.get(f'https://dle.rae.es/{entry}', headers=MOZILLA_HEADERS)
+	r = requests.get(f'https://dle.rae.es/?w={entry}', headers=MOZILLA_HEADERS)
 	return parse_response(r)
 
 def get_list(entry):
@@ -80,6 +82,7 @@ def get_word_of_the_day():
 	r = requests.get('https://dle.rae.es/', headers=MOZILLA_HEADERS)
 	sp = BeautifulSoup(r.text, features='html.parser')
 	return sp.find(id='wotd').text
+
 
 # Bot queries
 
