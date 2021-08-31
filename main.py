@@ -3,8 +3,6 @@ import bs4
 import requests
 from bs4 import BeautifulSoup
 import threading
-from requests.api import request
-from requests.models import RequestHooksMixin
 import telebot
 from telebot import types
 from telebot.util import MAX_MESSAGE_LENGTH 
@@ -35,38 +33,51 @@ INLINE_KEYBOARD_BUSCAR_DEFINICION.row(types.InlineKeyboardButton('Buscar definic
 
 # Messages parsing
 
-telegram_supported_tags = ['b', 'strong', 'i', 'em', 'u', 'ins', 's', 'strike', 'del', 'code', 'pre']
 
-def get_super(x):
-	normal = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-=()"
-	super_s = "ᴬᴮᶜᴰᴱᶠᴳᴴᴵᴶᴷᴸᴹᴺᴼᴾQᴿˢᵀᵁⱽᵂˣʸᶻᵃᵇᶜᵈᵉᶠᵍʰᶦʲᵏˡᵐⁿᵒᵖ۹ʳˢᵗᵘᵛʷˣʸᶻ⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾"
-	res = x.maketrans(''.join(normal), ''.join(super_s))
-	return x.translate(res)
 
-def recursive_unwrap(tag):
-	if (type(tag) == bs4.element.Tag):
-		fstr = ''
-		for x in tag.contents:
-			if x.name in telegram_supported_tags:
-				fstr += f'<{x.name}>{recursive_unwrap(x)}</{x.name}>'
-			elif x.name == 'sup':
-				fstr += get_super(x.string)
-			else:
-				fstr += recursive_unwrap(x)
-		return fstr
-	else:
-		return tag.string
+def recursive_unwrap(tag, v):
+	telegram_supported_tags = ['b', 'strong', 'i', 'em', 'u', 'ins', 's', 'strike', 'del', 'code', 'pre']
 
+	def get_super(x):
+		normal = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-=()"
+		super_s = "ᴬᴮᶜᴰᴱᶠᴳᴴᴵᴶᴷᴸᴹᴺᴼᴾQᴿˢᵀᵁⱽᵂˣʸᶻᵃᵇᶜᵈᵉᶠᵍʰᶦʲᵏˡᵐⁿᵒᵖ۹ʳˢᵗᵘᵛʷˣʸᶻ⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾"
+		res = x.maketrans(''.join(normal), ''.join(super_s))
+		return x.translate(res)
+
+	def recursion(tag):
+		if (type(tag) == bs4.element.Tag):
+			fstr = ''
+			for x in tag.contents:
+				if x.name in telegram_supported_tags:
+					fstr += f'<{x.name}>{recursion(x)}</{x.name}>'
+				elif x.name == 'sup':
+					fstr += get_super(x.string)
+				else:
+					fstr += recursion(x)
+			return fstr
+		else:
+			return tag.string
+
+	msg_continua_end = '\n\n <pre>ver continuación...</pre>'
+	msg_continua_start = '<pre>... continuación</pre>\n\n'
+	
+	for x in tag.contents:
+		tag_text = recursion(x)
+		if (len(v[-1]) + len(msg_continua_end) + len(tag_text) + len(MSG_PDD) + len('electroencefalografista') > MAX_MESSAGE_LENGTH):
+			v[-1] += msg_continua_end
+			v.append(msg_continua_start)
+		v[-1] += tag_text
+	
 def parse_response(r):
 	sp = BeautifulSoup(r.text, features='html.parser')
-	definition = ''
+	definitions = ['']
 	for article in sp.find('div', {'id': 'resultados'}).find_all('article', recursive=False):
-		definition += recursive_unwrap(article)
-	return definition
+		recursive_unwrap(article, definitions)
+	return definitions
 
 # RAE queries
 
-def get_definition(entry):
+def get_definitions(entry):
 	r = requests.get(f'https://dle.rae.es/?w={entry}', headers=MOZILLA_HEADERS)
 	return parse_response(r)
 
@@ -93,12 +104,11 @@ def inline_query_handler(query):
 
 		res = []
 		def add_res(i, entry):
-			deffinition_text = get_definition(entry)
-			if len(deffinition_text) > MAX_MESSAGE_LENGTH:
-					deffinition_text = deffinition_text[:MAX_MESSAGE_LENGTH]
-			definition = types.InputTextMessageContent(deffinition_text, parse_mode='HTML')
-			r = types.InlineQueryResultArticle(i, title=entry, input_message_content=definition, description=deffinition_text)
-			res.append(r)
+			definitions_list = get_definitions(entry)
+			for idx, definition_text in enumerate(definitions_list):
+				definition = types.InputTextMessageContent(definition_text, parse_mode='HTML')
+				r = types.InlineQueryResultArticle(f'{i}{idx}', title=entry, input_message_content=definition, description=definition_text)
+				res.append((f'{i}{idx}',r))
 
 		threads = []
 
@@ -111,6 +121,9 @@ def inline_query_handler(query):
 		for i in range(len(l)):
 			threads[i].join()
 			
+		res.sort()
+		res = [x[1] for x in res]
+
 		if len(res) == 0:
 			bot.answer_inline_query(query.id, res, switch_pm_text=MSG_NO_RESULT, switch_pm_parameter='no_result')
 		else:
@@ -137,16 +150,21 @@ def ejemplo_handler(message):
 @bot.message_handler(commands=['aleatorio'])
 def aleatorio_handler(message):
 	bot.send_chat_action(message.chat.id, 'typing')
-	text = get_random()
-	bot.send_message(message.chat.id, text, parse_mode='HTML')
+	definitions = get_random()
+	for page in definitions:
+		bot.send_message(message.chat.id, page, parse_mode='HTML')
 
 @bot.message_handler(commands=['pdd'])
 def pdd_handler(message):
 	bot.send_chat_action(message.chat.id, 'typing')
 	wotd = get_word_of_the_day()
 	new_message = bot.send_message(message.chat.id, MSG_PDD.format(wotd), parse_mode='HTML')
-	definition = get_definition(wotd)
-	bot.edit_message_text(chat_id=new_message.chat.id, message_id=new_message.message_id, text=MSG_PDD.format(definition.lstrip()), parse_mode='HTML')
+	
+	definitions = get_definitions(wotd)
+
+	bot.edit_message_text(chat_id=message.chat.id, message_id=new_message.message_id, text=MSG_PDD.format(definitions[0].lstrip()), parse_mode='HTML')	
+	for page in definitions[1:]:
+		bot.send_message(message.chat.id, page, parse_mode='HTML')
 
 if __name__ == '__main__':
 	bot.infinity_polling()
