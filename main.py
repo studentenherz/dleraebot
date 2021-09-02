@@ -160,7 +160,7 @@ def pdd_handler(message):
 	wotd = get_word_of_the_day()
 	new_message = bot.send_message(message.chat.id, MSG_PDD.format(wotd), parse_mode='HTML')
 	
-	definitions = get_definitions(wotd)
+	definitions = get_definitions(wotd.split(',')[0]) # ex.: cabalístico, ca
 
 	bot.edit_message_text(chat_id=message.chat.id, message_id=new_message.message_id, text=MSG_PDD.format(definitions[0].lstrip()), parse_mode='HTML')	
 	for page in definitions[1:]:
