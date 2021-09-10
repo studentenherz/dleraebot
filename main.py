@@ -15,18 +15,20 @@ bot = telebot.TeleBot(bot_token)
 
 
 MOZILLA_HEADERS = {'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:91.0) Gecko/20100101 Firefox/91.0'}
-
 MSG_START = 'No es necesario que inicies un chat con el bot para que funcione, tampoco es necesario que lo agregues a ningún grupo o canal (/ayuda para más información), pero ya que estás aquí te cuento algunas cosas:\n\n - los comandos están en español porque es un bot para obtener definiciones de palabras en español 😅.\n\n -Hace un tiempo le escribí a la RAE (a través de un formulario en su página web, quizá nunca me leyeron) proponiéndoles la idea de que hicieran este bot, si quisieran problablemente Telegram les diese un @ más corto como @dle y la marca de bot oficial.\n\nPuedes ver el código del bot en [GitHub](https://github.com/studentenherz/dleraebot), y puedes recibir noticias acerca del bot en @dleraebotchannel.'
-
 MSG_AYUDA = 'Escribe @dleraebot y luego la palabra que deseas buscar, en unos segundos aparecerán las opciones compatibles. Si no te queda claro puedes ver un gif de ejemplo con /ejemplo.\n\nEn las definiciones se pueden encontrar algunas abreviaturas cuyo significado puedes ver <a href="https://t.me/dleraebotchannel/10">aquí</a>.'
-
 MSG_EJEMPLO = 'CgACAgEAAxkBAAMWYSSF83hFhvdaCGrKA8S7RIogjn8AAqcCAAI3gSBFIvdrsiI9VIwgBA'
-
 MSG_NO_RESULT = 'No se han encontrado resultados'
-
 MSG_NO_RESULT_LONG = 'Los siento, no se han encontrado resultados. Intenta letra por letra y quizá la palabra que buscas esté entre las opciones.'
-
 MSG_PDD = '📖 Palabra del día\n\n {}'
+
+KEY_PDD = '📖 Palabra del día'
+KEY_ALEATORIO = '🎲 Palabra aleatoria'
+KEY_AYUDA = '❔ Ayuda'
+
+REPLY_KEYBOARD = types.ReplyKeyboardMarkup(resize_keyboard=True)
+REPLY_KEYBOARD.row(types.KeyboardButton(KEY_ALEATORIO), types.KeyboardButton(KEY_PDD))
+REPLY_KEYBOARD.row(types.KeyboardButton(KEY_AYUDA))
 
 INLINE_KEYBOARD_BUSCAR_DEFINICION = types.InlineKeyboardMarkup()
 INLINE_KEYBOARD_BUSCAR_DEFINICION.row(types.InlineKeyboardButton('Buscar definición', switch_inline_query=f''))
@@ -137,7 +139,7 @@ def start_handler(message):
 	if 'no_result' in message.text:
 		bot.send_message(message.chat.id, MSG_NO_RESULT_LONG, parse_mode='markdown', disable_web_page_preview=True, reply_markup=INLINE_KEYBOARD_BUSCAR_DEFINICION)
 	else:
-		bot.send_message(message.chat.id, MSG_START, parse_mode='markdown', disable_web_page_preview=True)
+		bot.send_message(message.chat.id, MSG_START, parse_mode='markdown', disable_web_page_preview=True, reply_markup=REPLY_KEYBOARD)
 
 @bot.message_handler(commands=['ayuda'])
 def help_handler(message):
@@ -165,6 +167,17 @@ def pdd_handler(message):
 	bot.edit_message_text(chat_id=message.chat.id, message_id=new_message.message_id, text=MSG_PDD.format(definitions[0].lstrip()), parse_mode='HTML')	
 	for page in definitions[1:]:
 		bot.send_message(message.chat.id, page, parse_mode='HTML')
+
+keyoard_command_function = {
+	KEY_PDD : pdd_handler,
+	KEY_ALEATORIO: aleatorio_handler,
+	KEY_AYUDA: help_handler,
+}
+
+@bot.message_handler(content_types=['text'])
+def text_messages_handler(message):
+	if message.text in keyoard_command_function:
+		keyoard_command_function[message.text](message)
 
 if __name__ == '__main__':
 	bot.infinity_polling()
