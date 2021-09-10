@@ -141,7 +141,7 @@ def start_handler(message):
 	else:
 		bot.send_message(message.chat.id, MSG_START, parse_mode='markdown', disable_web_page_preview=True, reply_markup=REPLY_KEYBOARD)
 
-@bot.message_handler(commands=['ayuda'])
+@bot.message_handler(commands=['ayuda', 'help'])
 def help_handler(message):
 	bot.send_message(message.chat.id, MSG_AYUDA, reply_markup=INLINE_KEYBOARD_BUSCAR_DEFINICION, parse_mode='HTML', disable_web_page_preview=True)
 
