@@ -136,6 +136,8 @@ def inline_query_handler(query):
 
 @bot.message_handler(commands=['start'])
 def start_handler(message):
+	if message.chat.type != 'private':
+		return
 	if 'no_result' in message.text:
 		bot.send_message(message.chat.id, MSG_NO_RESULT_LONG, parse_mode='markdown', disable_web_page_preview=True, reply_markup=INLINE_KEYBOARD_BUSCAR_DEFINICION)
 	else:
