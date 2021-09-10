@@ -109,8 +109,8 @@ def inline_query_handler(query):
 			definitions_list = get_definitions(entry)
 			for idx, definition_text in enumerate(definitions_list):
 				definition = types.InputTextMessageContent(definition_text, parse_mode='HTML')
-				r = types.InlineQueryResultArticle(f'{i}{idx}', title=entry, input_message_content=definition, description=definition_text)
-				res.append((f'{i}{idx}',r))
+				r = types.InlineQueryResultArticle(f'{i}_{idx}', title=entry, input_message_content=definition, description=definition_text)
+				res.append((f'{i}_{idx}',r))
 
 		threads = []
 
