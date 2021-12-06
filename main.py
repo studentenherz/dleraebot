@@ -185,7 +185,7 @@ def text_messages_handler(message):
 	if message.chat.type == 'private':
 		if message.text in keyoard_command_function:
 			keyoard_command_function[message.text](message)
-		else:
+		elif not message.via_bot or message.via_bot.id != bot.get_me().id:
 			word = message.text.split()[0].lower()
 			list = get_list(word)
 			if word in list:
