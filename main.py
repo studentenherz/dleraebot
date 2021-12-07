@@ -242,6 +242,7 @@ keyboard_command_function = {
 @bot.message_handler(content_types=['text'])
 def text_messages_handler(message):
 	if message.chat.type == 'private':
+		add_user(message.from_user.id) # provisional to gather data
 		if message.text in keyboard_command_function:
 			keyboard_command_function[message.text](message)
 		elif not message.via_bot or message.via_bot.id != bot.get_me().id:
@@ -251,17 +252,20 @@ def text_messages_handler(message):
 				bot.send_chat_action(message.chat.id, 'typing')
 				definitions_list = get_definitions(word)
 				for definition_text in definitions_list:
-					bot.send_message(message.chat.id, definition_text, parse_mode='HTML')
+					bot.send_message(message.chat.id, definition_text, parse_mode='HTML', reply_markup=REPLY_KEYBOARD)
 			else:
 				bot.send_message(message.chat.id, MSG_NO_RESULT_DIRECT_MESSAGE.format(word), parse_mode='HTML',reply_markup=INLINE_KEYBOARD_BUSCAR_DEFINICION_CURRENT_CHAT)
 
-
-
+# @bot.chosen_inline_handler(lambda query: True)
+# def handle_chosen_inline(result):
+# 	print(result)
+# 	# There is something wrong with this part, it crashes
+# 	add_user(result.from_user.id) # provisional to gather data
 
 
 # Scheduling
 
-def run_continuously(interval=1):
+def run_continuously(interval=60 * 60):
     """Continuously run, while executing pending jobs at each
     elapsed time interval.
     @return cease_continuous_run: threading. Event which can
@@ -294,7 +298,7 @@ def broadcast_word_of_the_day():
 		send_word_of_the_day(sub_id)
 
 if __name__ == '__main__':
-	schedule.every().day.at('09:00').do(broadcast_word_of_the_day)
+	schedule.every().day.at('12:00').do(broadcast_word_of_the_day)
 	stop_run_continuously = run_continuously()
 	bot.infinity_polling()
 	stop_run_continuously.set()
