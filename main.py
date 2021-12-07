@@ -5,9 +5,11 @@ import threading
 import telebot
 from telebot import types
 from telebot.util import MAX_MESSAGE_LENGTH 
-from credentials import bot_token
+from credentials import bot_token, admin_id
 import ast
-from db.handler import subscribe_user, unsubscribe_user, add_user, is_subscribed
+from db.handler import subscribe_user, unsubscribe_user, add_user, is_subscribed, get_susbcribed_ids, get_users_count
+import time
+import schedule
 
 bot = telebot.TeleBot(bot_token)
 
@@ -40,9 +42,12 @@ INLINE_KEYBOARD_BUSCAR_DEFINICION.row(types.InlineKeyboardButton('Buscar definic
 INLINE_KEYBOARD_BUSCAR_DEFINICION_CURRENT_CHAT = types.InlineKeyboardMarkup()
 INLINE_KEYBOARD_BUSCAR_DEFINICION_CURRENT_CHAT.row(types.InlineKeyboardButton('Buscar definición', switch_inline_query_current_chat=f''))
 
+# Global variables
+word_of_the_day = ''
+wotd_definitions = []
+
+
 # Messages parsing
-
-
 
 def recursive_unwrap(tag, v):
 	telegram_supported_tags = ['b', 'strong', 'i', 'em', 'u', 'ins', 's', 'strike', 'del', 'code', 'pre']
@@ -83,6 +88,8 @@ def parse_response(r):
 	for article in sp.find('div', {'id': 'resultados'}).find_all('article', recursive=False):
 		recursive_unwrap(article, definitions)
 	return definitions
+
+
 
 # RAE queries
 
@@ -165,17 +172,24 @@ def aleatorio_handler(message):
 	for page in definitions:
 		bot.send_message(message.chat.id, page, parse_mode='HTML')
 
+def update_word_of_the_day():
+	global word_of_the_day, wotd_definitions
+
+	word_of_the_day = get_word_of_the_day()
+	wotd_definitions = get_definitions(word_of_the_day.split(',')[0]) # ex.: cabalístico, ca
+
+def send_word_of_the_day(chat_id):
+	if word_of_the_day == '':
+		bot.send_chat_action(chat_id, 'typing')
+		update_word_of_the_day()
+	bot.send_message(chat_id, MSG_PDD.format(wotd_definitions[0].lstrip()), parse_mode='HTML')	
+	for page in wotd_definitions[1:]:
+		bot.send_message(chat_id, page, parse_mode='HTML')
+
+
 @bot.message_handler(commands=['pdd'])
 def pdd_handler(message):
-	bot.send_chat_action(message.chat.id, 'typing')
-	wotd = get_word_of_the_day()
-	new_message = bot.send_message(message.chat.id, MSG_PDD.format(wotd), parse_mode='HTML')
-	
-	definitions = get_definitions(wotd.split(',')[0]) # ex.: cabalístico, ca
-
-	bot.edit_message_text(chat_id=message.chat.id, message_id=new_message.message_id, text=MSG_PDD.format(definitions[0].lstrip()), parse_mode='HTML')	
-	for page in definitions[1:]:
-		bot.send_message(message.chat.id, page, parse_mode='HTML')
+	send_word_of_the_day(message.chat.id)
 
 @bot.message_handler(commands=['suscripcion'])
 def suscripcion_handler(message):
@@ -187,6 +201,17 @@ def suscripcion_handler(message):
 		keyboard = types.InlineKeyboardMarkup()
 		keyboard.row(types.InlineKeyboardButton('Desuscribirme' if is_sus else '¡Suscribirme!', callback_data='desubs' if is_sus else 'subs'))
 		bot.send_message(message.chat.id, text, reply_markup=keyboard, parse_mode='HTML')
+
+@bot.message_handler(commands=['users'])
+def check_users_handler(message):
+	if message.from_user.id == admin_id:
+		command = message.text.split(' ')[1] # /users command
+		if command == 'n':
+			n = get_users_count()
+		elif command == 's':
+			n = get_users_count(subscribed=True)
+		bot.send_message(admin_id, f'{n} users')
+
 
 @bot.callback_query_handler(lambda query: True)
 def handle_callback_query(query):
@@ -231,5 +256,45 @@ def text_messages_handler(message):
 				bot.send_message(message.chat.id, MSG_NO_RESULT_DIRECT_MESSAGE.format(word), parse_mode='HTML',reply_markup=INLINE_KEYBOARD_BUSCAR_DEFINICION_CURRENT_CHAT)
 
 
+
+
+
+# Scheduling
+
+def run_continuously(interval=1):
+    """Continuously run, while executing pending jobs at each
+    elapsed time interval.
+    @return cease_continuous_run: threading. Event which can
+    be set to cease continuous run. Please note that it is
+    *intended behavior that run_continuously() does not run
+    missed jobs*. For example, if you've registered a job that
+    should run every minute and you set a continuous run
+    interval of one hour then your job won't be run 60 times
+    at each interval but only once.
+    """
+    cease_continuous_run = threading.Event()
+
+    class ScheduleThread(threading.Thread):
+        @classmethod
+        def run(cls):
+            while not cease_continuous_run.is_set():
+                schedule.run_pending()
+                time.sleep(interval)
+
+    continuous_thread = ScheduleThread()
+    continuous_thread.start()
+    return cease_continuous_run
+
+
+def broadcast_word_of_the_day():
+	update_word_of_the_day()
+	subs = get_susbcribed_ids()
+
+	for sub_id in subs:
+		send_word_of_the_day(sub_id)
+
 if __name__ == '__main__':
+	schedule.every().day.at('09:00').do(broadcast_word_of_the_day)
+	stop_run_continuously = run_continuously()
 	bot.infinity_polling()
+	stop_run_continuously.set()

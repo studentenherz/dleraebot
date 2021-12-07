@@ -72,7 +72,7 @@ def get_user(tgid):
 		user = s.query(User).filter(User.tgid == tgid).one()
 		return user
 	except sqlalchemy.orm.exc.NoResultFound:
-		print('No user in table')
+		pass
 
 ############################
 ###### SETTING DATA  #######         
