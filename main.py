@@ -7,6 +7,7 @@ from telebot import types
 from telebot.util import MAX_MESSAGE_LENGTH 
 from credentials import bot_token
 import ast
+from db.handler import subscribe_user, unsubscribe_user, add_user, is_subscribed
 
 bot = telebot.TeleBot(bot_token)
 
@@ -22,14 +23,16 @@ MSG_NO_RESULT = 'No se han encontrado resultados'
 MSG_NO_RESULT_LONG = 'Lo siento, no se han encontrado resultados. Intenta letra por letra y quizá la palabra que buscas esté entre las opciones.'
 MSG_PDD = '📖 Palabra del día\n\n {}'
 MSG_NO_RESULT_DIRECT_MESSAGE = 'Lo siento, no se han encontrado resultados para «{}». Debes enviar un mensaje de texto que contenga solo el término que deseas buscar y respetando su correcta escritura incluyendo tildes. Si no sabes cómo se escribe intenta el modo <i>inline</i> donde verás sugerencias mientras escribes.'
+MSG_PDD_SUSB = '{}, aquí puedes manejar tu suscripción a la 📖 <i>Palabra del día</i> para que la recibas diariamente. Actualmente {} estás suscrito, pero si lo prefieres puedes cambiar.'
 
 KEY_PDD = '📖 Palabra del día'
 KEY_ALEATORIO = '🎲 Palabra aleatoria'
 KEY_AYUDA = '❔ Ayuda'
+KEY_SUSCRIPCION = '🔔 Suscripción'
 
 REPLY_KEYBOARD = types.ReplyKeyboardMarkup(resize_keyboard=True)
 REPLY_KEYBOARD.row(types.KeyboardButton(KEY_ALEATORIO), types.KeyboardButton(KEY_PDD))
-REPLY_KEYBOARD.row(types.KeyboardButton(KEY_AYUDA))
+REPLY_KEYBOARD.row(types.KeyboardButton(KEY_SUSCRIPCION), types.KeyboardButton(KEY_AYUDA))
 
 INLINE_KEYBOARD_BUSCAR_DEFINICION = types.InlineKeyboardMarkup()
 INLINE_KEYBOARD_BUSCAR_DEFINICION.row(types.InlineKeyboardButton('Buscar definición', switch_inline_query=f''))
@@ -140,12 +143,12 @@ def inline_query_handler(query):
 
 @bot.message_handler(commands=['start'])
 def start_handler(message):
-	if message.chat.type != 'private':
-		return
-	if 'no_result' in message.text:
-		bot.send_message(message.chat.id, MSG_NO_RESULT_LONG, parse_mode='markdown', disable_web_page_preview=True, reply_markup=INLINE_KEYBOARD_BUSCAR_DEFINICION)
-	else:
-		bot.send_message(message.chat.id, MSG_START, parse_mode='markdown', disable_web_page_preview=True, reply_markup=REPLY_KEYBOARD)
+	if message.chat.type == 'private':
+		if 'no_result' in message.text:
+			bot.send_message(message.chat.id, MSG_NO_RESULT_LONG, parse_mode='markdown', disable_web_page_preview=True, reply_markup=INLINE_KEYBOARD_BUSCAR_DEFINICION)
+		else:
+			bot.send_message(message.chat.id, MSG_START, parse_mode='markdown', disable_web_page_preview=True, reply_markup=REPLY_KEYBOARD)
+			add_user(message.from_user.id)
 
 @bot.message_handler(commands=['ayuda', 'help'])
 def help_handler(message):
@@ -174,17 +177,48 @@ def pdd_handler(message):
 	for page in definitions[1:]:
 		bot.send_message(message.chat.id, page, parse_mode='HTML')
 
-keyoard_command_function = {
+@bot.message_handler(commands=['suscripcion'])
+def suscripcion_handler(message):
+	if message.chat.type == 'private':
+		tgid = message.from_user.id
+		first_name = message.from_user.first_name
+		is_sus = is_subscribed(tgid)
+		text = MSG_PDD_SUSB.format(first_name, 'SÍ' if is_sus else 'NO')
+		keyboard = types.InlineKeyboardMarkup()
+		keyboard.row(types.InlineKeyboardButton('Desuscribirme' if is_sus else '¡Suscribirme!', callback_data='desubs' if is_sus else 'subs'))
+		bot.send_message(message.chat.id, text, reply_markup=keyboard, parse_mode='HTML')
+
+@bot.callback_query_handler(lambda query: True)
+def handle_callback_query(query):
+	if query.data in ['desubs', 'subs']:
+		tgid = query.from_user.id
+		new_text = query.message.text
+		query_answer= ''
+
+		if query.data == 'subs':
+			subscribe_user(tgid)
+			new_text += '\n\n ¡Listo!, te has suscrito.'
+			query_answer = '✅ ¡Te has suscrito!'
+		if query.data == 'desubs':
+			unsubscribe_user(tgid)
+			new_text += '\n\n ¡Listo!, ya no estás suscrito.'
+			query_answer = '❌ Te has desuscrito.'
+
+		bot.answer_callback_query(query.id, query_answer)
+		bot.edit_message_text(new_text, query.message.chat.id, query.message.id)
+
+keyboard_command_function = {
 	KEY_PDD : pdd_handler,
 	KEY_ALEATORIO: aleatorio_handler,
 	KEY_AYUDA: help_handler,
+	KEY_SUSCRIPCION: suscripcion_handler
 }
 
 @bot.message_handler(content_types=['text'])
 def text_messages_handler(message):
 	if message.chat.type == 'private':
-		if message.text in keyoard_command_function:
-			keyoard_command_function[message.text](message)
+		if message.text in keyboard_command_function:
+			keyboard_command_function[message.text](message)
 		elif not message.via_bot or message.via_bot.id != bot.get_me().id:
 			word = message.text.split()[0].lower()
 			list = get_list(word)

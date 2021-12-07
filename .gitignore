@@ -110,3 +110,4 @@ credentials.py
 # misc
 images/
 log.txt
+database.db
