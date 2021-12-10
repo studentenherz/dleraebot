@@ -245,7 +245,7 @@ def check_usage_handler(message):
 			text += f'<pre>{u.day.strftime("%d/%m/%y")} | {users} | {messages} | {queries}\n</pre>\n'
 
 		text += f'<pre>Total users: {get_users_count()}</pre>\n'
-		text += f'<pre>Total users: {get_users_count(subscribed=True)}</pre>\n'
+		text += f'<pre>Subscribed users: {get_users_count(subscribed=True)}</pre>\n'
 
 		bot.send_message(admin_id, text, parse_mode='HTML')
 
