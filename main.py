@@ -7,9 +7,10 @@ from telebot import types
 from telebot.util import MAX_MESSAGE_LENGTH 
 from credentials import bot_token, admin_id
 import ast
-from db.handler import subscribe_user, unsubscribe_user, add_user, is_subscribed, get_susbcribed_ids, get_users_count
+from db.handler import subscribe_user, unsubscribe_user, add_user, is_subscribed, get_susbcribed_ids, get_users_count, update_usage, get_usage_last, get_usage
 import time
 import schedule
+import datetime
 
 bot = telebot.TeleBot(bot_token)
 
@@ -46,6 +47,10 @@ INLINE_KEYBOARD_BUSCAR_DEFINICION_CURRENT_CHAT.row(types.InlineKeyboardButton('B
 word_of_the_day = ''
 wotd_definitions = []
 
+new_users = set()
+new_inline_searches = 0
+new_searches = 0
+actually_new_count = 0
 
 # Messages parsing
 
@@ -205,12 +210,44 @@ def suscripcion_handler(message):
 @bot.message_handler(commands=['users'])
 def check_users_handler(message):
 	if message.from_user.id == admin_id:
-		command = message.text.split(' ')[1] # /users command
-		if command == 'n':
+		commands = message.text.split(' ') # /users command
+		if len(commands) < 2:
 			n = get_users_count()
-		elif command == 's':
+		elif commands[1] == 's':
 			n = get_users_count(subscribed=True)
 		bot.send_message(admin_id, f'{n} users')
+
+@bot.message_handler(commands=['usage'])
+def check_usage_handler(message):
+	if message.from_user.id == admin_id:
+		commands = message.text.split(' ') # /usage ndays
+		if len(commands) < 2:
+			ndays = 1
+		else:
+			try:
+				ndays = int(commands[1])
+			except:
+				ndays = 1
+		
+		usage_list = get_usage_last(ndays)
+
+		text = '<pre>     ....:: Usage Stats ::....      \n\n   day   | users | messages | inline\n------------------------------------</pre>\n'
+		
+		
+		for u in usage_list:
+			users = str(u.users)
+			messages = str(u.messages)
+			queries = str(u.queries)
+			users = (' ' * (len('users') - len(users))) + users
+			messages = (' ' * (len('messages') - len(messages))) + messages
+			queries = (' ' * (len('inline') - len(queries))) + queries
+
+			text += f'<pre>{u.day.strftime("%d/%m/%y")} | {users} | {messages} | {queries}\n</pre>\n'
+
+		text += f'<pre>Total users: {get_users_count()}</pre>\n'
+		text += f'<pre>Total users: {get_users_count(subscribed=True)}</pre>\n'
+
+		bot.send_message(admin_id, text, parse_mode='HTML')
 
 
 @bot.callback_query_handler(lambda query: True)
@@ -241,11 +278,14 @@ keyboard_command_function = {
 
 @bot.message_handler(content_types=['text'])
 def text_messages_handler(message):
+	global new_searches, new_users
+
 	if message.chat.type == 'private':
-		add_user(message.from_user.id) # provisional to gather data
+		new_users.add(message.from_user.id) # add user
 		if message.text in keyboard_command_function:
 			keyboard_command_function[message.text](message)
 		elif not message.via_bot or message.via_bot.id != bot.get_me().id:
+			new_searches += 1 # incdrement searches
 			word = message.text.split()[0].lower()
 			list = get_list(word)
 			if word in list:
@@ -256,16 +296,15 @@ def text_messages_handler(message):
 			else:
 				bot.send_message(message.chat.id, MSG_NO_RESULT_DIRECT_MESSAGE.format(word), parse_mode='HTML',reply_markup=INLINE_KEYBOARD_BUSCAR_DEFINICION_CURRENT_CHAT)
 
-# @bot.chosen_inline_handler(lambda query: True)
-# def handle_chosen_inline(result):
-# 	print(result)
-# 	# There is something wrong with this part, it crashes
-# 	add_user(result.from_user.id) # provisional to gather data
-
+@bot.chosen_inline_handler(lambda query: True)
+def handle_chosen_inline(result):
+	global new_users, new_inline_searches
+	new_users.add(result.from_user.id) # add user
+	new_inline_searches += 1 # increment inline searches
 
 # Scheduling
 
-def run_continuously(interval=60 * 60):
+def run_continuously(interval=60):
     """Continuously run, while executing pending jobs at each
     elapsed time interval.
     @return cease_continuous_run: threading. Event which can
@@ -297,8 +336,40 @@ def broadcast_word_of_the_day():
 	for sub_id in subs:
 		send_word_of_the_day(sub_id)
 
+def update_database():
+	global actually_new_count, new_searches, new_inline_searches
+
+	# update users
+	for utgid in new_users:
+		actually_new_count += add_user(utgid)
+	new_users.clear()
+
+	#update usage
+	is_new_day = update_usage(new_searches, new_inline_searches, actually_new_count)
+
+	if is_new_day == 1:
+		print('New day data')
+		new_searches = 0
+		new_inline_searches = 0
+		actually_new_count = 0
+
+	print('Database updated')
+
+def init():
+	global actually_new_count, new_searches, new_inline_searches
+	today_usage = get_usage(datetime.date.today())
+	if today_usage:
+		actually_new_count = today_usage.users
+		new_inline_searches = today_usage.queries
+		new_searches = today_usage.messages
+
 if __name__ == '__main__':
+	init()
+
+	# schedule
 	schedule.every().day.at('12:00').do(broadcast_word_of_the_day)
+	schedule.every().minute.do(update_database)
+
 	stop_run_continuously = run_continuously()
 	bot.infinity_polling()
 	stop_run_continuously.set()

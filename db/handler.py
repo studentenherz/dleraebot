@@ -35,11 +35,11 @@ s = DBSession()
 ###### GETTING DATA  #######         
 ############################
 
-def get_usage():
-	result = s.query(Usage)
+def get_usage(day):
+	result = s.query(Usage).filter(Usage.day == day)
 	if result:            
 		try:
-			return result.all()
+			return result.one()
 		except sqlalchemy.orm.exc.NoResultFound:
 			print('No usage found get_usage')
 
@@ -79,6 +79,9 @@ def get_user(tgid):
 ############################
 
 def update_user(tgid, subscribed = None, blocked = None, messages = None, queries = None):
+	"""
+		Updates user, returns 0 if it edited user and 1 if it added the user
+	"""
 	try: 
 		user = s.query(User).filter(User.tgid == tgid).one()
 		if subscribed != None:
@@ -90,21 +93,13 @@ def update_user(tgid, subscribed = None, blocked = None, messages = None, querie
 		if queries:
 			user.queries = queries
 		s.add(user)
+		s.commit()
+		return 0
 	except sqlalchemy.orm.exc.NoResultFound:
 		s.add(User(tgid=tgid, subscribed=subscribed, blocked=blocked, messages=messages, queries=queries))
-	s.commit()
+		s.commit()
+		return 1
 
-def update_usage(messages, queries, users):
-	try:
-		day_usage = s.query(Usage).filter(Usage.day == datetime.date.today()).one()
-		day_usage.messages = messages
-		day_usage.queries = queries
-		day_usage.users = users
-		s.add(day_usage)
-	except sqlalchemy.orm.exc.NoResultFound:
-		print('New day usage')
-		s.add(Usage(day=datetime.date.today(), messages=messages, queries=queries, users=users))
-	s.commit()
 
 ############################
 ######  FOR THE USE  #######         
@@ -127,7 +122,7 @@ def get_susbcribed_ids():
 	return [sub.tgid for sub in subs]
 
 def add_user(tgid):
-	update_user(tgid)
+	return update_user(tgid)
 
 def is_subscribed(tgid):
 	user = get_user(tgid)
@@ -136,3 +131,30 @@ def is_subscribed(tgid):
 		return False
 	else:
 		return user.subscribed
+
+
+def update_usage(messages, queries, users):
+	"""
+		Updates usage, returns 0 if it edited usage and 1 if it added the usage
+	"""
+	try:
+		day_usage = s.query(Usage).filter(Usage.day == datetime.date.today()).one()
+		day_usage.messages = messages
+		day_usage.queries = queries
+		day_usage.users = users
+		s.add(day_usage)
+		s.commit()
+		return 0
+	except sqlalchemy.orm.exc.NoResultFound:
+		print('New day usage')
+		s.add(Usage(day=datetime.date.today(), messages=messages, queries=queries, users=users))
+		s.commit()
+		return 1
+
+def get_usage_last(ndays):
+	result = s.query(Usage).order_by(Usage.day.asc()).limit(ndays)
+	if result:            
+		try:
+			return result.all()
+		except sqlalchemy.orm.exc.NoResultFound:
+			print('No usage found get_usage')
