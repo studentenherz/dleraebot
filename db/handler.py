@@ -152,7 +152,7 @@ def update_usage(messages, queries, users):
 		return 1
 
 def get_usage_last(ndays):
-	result = s.query(Usage).order_by(Usage.day.asc()).limit(ndays)
+	result = s.query(Usage).order_by(Usage.day.desc()).limit(ndays)
 	if result:            
 		try:
 			return result.all()
