@@ -352,35 +352,32 @@ def update_database():
 	is_new_day = update_usage(new_searches, new_inline_searches, actually_new_count)
 
 	if is_new_day == 1:
-		print('New day data')
 		new_searches = 0
 		new_inline_searches = 0
 		actually_new_count = 0
 
-	print('Database updated')
-
 def init():
 	global actually_new_count, new_searches, new_inline_searches
 	today_usage = get_usage(datetime.date.today())
-	
+
 	if today_usage:
 		actually_new_count = today_usage.users
 		new_inline_searches = today_usage.queries
 		new_searches = today_usage.messages
 
 if __name__ == '__main__':
-	# init()
+	init()
 
-	# # schedule
-	# schedule.every().day.at('12:00').do(broadcast_word_of_the_day)
-	# schedule.every().minute.do(update_database)
+	# schedule
+	schedule.every().day.at('12:00').do(broadcast_word_of_the_day)
+	schedule.every().minute.do(update_database)
 
-	# stop_run_continuously = run_continuously()
+	stop_run_continuously = run_continuously()
 
 	loop = asyncio.get_event_loop()
 	try:
 		loop.run_until_complete(bot.infinity_polling(logger_level=logging.INFO))
 	except KeyboardInterrupt:
-		# logger.info('Ctrl-C recieved, exiting.')
+		logger.info('Ctrl-C recieved, exiting.')
 		pass
-	# stop_run_continuously.set()
+	stop_run_continuously.set()

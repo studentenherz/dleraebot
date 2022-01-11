@@ -7,13 +7,27 @@ import datetime
 from .models import Base, User, Usage
 from .settings import db_name, db_location
 
+import logging
+
+logger = logging.getLogger(__name__)
+
+formatter = logging.Formatter(
+    '%(asctime)s (%(filename)s:%(lineno)d %(threadName)s) %(levelname)s - %(name)s: "%(message)s"'
+)
+
+console_output_handler = logging.StreamHandler()
+console_output_handler.setFormatter(formatter)
+logger.addHandler(console_output_handler)
+
+logger.setLevel(logging.INFO)
+
 # Create an engine that stores data in the local directory's
 # sqlalchemy_example.db file.
 engine = create_engine('sqlite:///'+ db_location + '//' + db_name, connect_args={'check_same_thread': False})
 
 
 if not db_name in os.listdir(db_location):
-		print('Not db found, creating one')
+		logger.info('Not db found, creating one...')
 		# Create all tables in the engine. This is equivalent to "Create Table"
 		# statements in raw SQL.
 		Base.metadata.create_all(engine)
@@ -39,7 +53,8 @@ def get_usage(day):
 		try:
 			return result.one()
 		except sqlalchemy.orm.exc.NoResultFound:
-			print('No usage found get_usage')
+			logger.info(f'No usage found for {day}')
+			update_usage(0, 0, 0)
 
 def get_users_count(subscribed = None, blocked = None):
 	result = s.query(User)
@@ -142,9 +157,10 @@ def update_usage(messages, queries, users):
 		day_usage.users = users
 		s.add(day_usage)
 		s.commit()
+		logger.info('Usage data updated')
 		return 0
 	except sqlalchemy.orm.exc.NoResultFound:
-		print('New day usage')
+		logger.info('Creating new day usage row.')
 		s.add(Usage(day=datetime.date.today(), messages=messages, queries=queries, users=users))
 		s.commit()
 		return 1
@@ -155,4 +171,7 @@ def get_usage_last(ndays):
 		try:
 			return result.all()
 		except sqlalchemy.orm.exc.NoResultFound:
-			print('No usage found get_usage')
+			logger.info(f'No usage data found.')
+			update_usage(0, 0, 0)
+			# try again
+			return get_usage_last(ndays)
