@@ -9,6 +9,18 @@ from .settings import db_name, db_location
 
 import logging
 
+LESSINFO = logging.INFO + 5
+class MyLogger(logging.getLoggerClass()):
+    def __init__(self, name, level=logging.NOTSET):
+        super().__init__(name, level)
+
+        logging.addLevelName(logging.INFO + 5, 'LESSINFO')
+
+    def lessinfo(self, msg, *args, **kwargs):
+        if self.isEnabledFor(LESSINFO):
+            self._log(LESSINFO, msg, args, **kwargs)
+
+logging.setLoggerClass(MyLogger)
 logger = logging.getLogger(__name__)
 
 formatter = logging.Formatter(
@@ -19,7 +31,7 @@ console_output_handler = logging.StreamHandler()
 console_output_handler.setFormatter(formatter)
 logger.addHandler(console_output_handler)
 
-logger.setLevel(logging.INFO)
+logger.setLevel(LESSINFO)
 
 # Create an engine that stores data in the local directory's
 # sqlalchemy_example.db file.
@@ -27,7 +39,7 @@ engine = create_engine('sqlite:///'+ db_location + '//' + db_name, connect_args=
 
 
 if not db_name in os.listdir(db_location):
-		logger.info('Not db found, creating one...')
+		logger.lessinfo('Not db found, creating one...')
 		# Create all tables in the engine. This is equivalent to "Create Table"
 		# statements in raw SQL.
 		Base.metadata.create_all(engine)
@@ -53,7 +65,7 @@ def get_usage(day):
 		try:
 			return result.one()
 		except sqlalchemy.orm.exc.NoResultFound:
-			logger.info(f'No usage found for {day}')
+			logger.lessinfo(f'No usage found for {day}')
 			update_usage(0, 0, 0)
 			# try again
 			return get_usage(day)
@@ -109,15 +121,17 @@ def update_user(tgid, subscribed = None, blocked = None, messages = None, querie
 			user.queries = queries
 		s.add(user)
 		s.commit()
+		logger.lessinfo(f'Update user ==> id: {user.tgid}; subscribed: {user.subscribed}; blocked: {user.blocked}; messages: {user.messages}; queries: {user.queries};')
 		return 0
 	except sqlalchemy.orm.exc.NoResultFound:
 		s.add(User(tgid=tgid, subscribed=subscribed, blocked=blocked, messages=messages, queries=queries))
 		s.commit()
+		logger.lessinfo(f'Added user ==> id: {tgid}; subscribed: {subscribed}; blocked: {blocked}; messages: {messages}; queries: {queries};')
 		return 1
 
 
 ############################
-######  FOR THE USE  #######         
+######  FOR THE USE  #######         	
 ############################
 
 def subscribe_user(tgid):
@@ -159,10 +173,10 @@ def update_usage(messages, queries, users):
 		day_usage.users = users
 		s.add(day_usage)
 		s.commit()
-		logger.info('Usage data updated')
+		logger.lessinfo('Usage data updated')
 		return 0
 	except sqlalchemy.orm.exc.NoResultFound:
-		logger.info('Creating new day usage row.')
+		logger.lessinfo('Creating new day usage row.')
 		s.add(Usage(day=datetime.date.today(), messages=messages, queries=queries, users=users))
 		s.commit()
 		return 1
@@ -173,7 +187,7 @@ def get_usage_last(ndays):
 		try:
 			return result.all()
 		except sqlalchemy.orm.exc.NoResultFound:
-			logger.info(f'No usage data found.')
+			logger.lessinfo(f'No usage data found.')
 			update_usage(0, 0, 0)
 			# try again
 			return get_usage_last(ndays)

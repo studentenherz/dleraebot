@@ -15,8 +15,31 @@ import asyncio
 import aiohttp
 from telebot.async_telebot import AsyncTeleBot
 
-logger = telebot.logger
-logger.setLevel(logging.INFO)
+import logging
+
+LESSINFO = logging.INFO + 5
+class MyLogger(logging.getLoggerClass()):
+    def __init__(self, name, level=logging.NOTSET):
+        super().__init__(name, level)
+
+        logging.addLevelName(logging.INFO + 5, 'LESSINFO')
+
+    def verbose(self, msg, *args, **kwargs):
+        if self.isEnabledFor(LESSINFO):
+            self._log(LESSINFO, msg, args, **kwargs)
+
+logging.setLoggerClass(MyLogger)
+logger = logging.getLogger(__name__)
+
+formatter = logging.Formatter(
+    '%(asctime)s (%(filename)s:%(lineno)d %(threadName)s) %(levelname)s - %(name)s: "%(message)s"'
+)
+
+console_output_handler = logging.StreamHandler()
+console_output_handler.setFormatter(formatter)
+logger.addHandler(console_output_handler)
+
+logger.setLevel(LESSINFO)
 
 bot = AsyncTeleBot(bot_token)
 
@@ -376,8 +399,8 @@ if __name__ == '__main__':
 
 	loop = asyncio.get_event_loop()
 	try:
-		loop.run_until_complete(bot.infinity_polling(logger_level=logging.INFO))
+		loop.run_until_complete(bot.infinity_polling(logger_level=logging.WARNING))
 	except KeyboardInterrupt:
-		logger.info('Ctrl-C recieved, exiting.')
+		logger.lessinfo('Ctrl-C recieved, exiting.')
 		pass
 	stop_run_continuously.set()
