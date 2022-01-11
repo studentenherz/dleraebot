@@ -55,6 +55,8 @@ def get_usage(day):
 		except sqlalchemy.orm.exc.NoResultFound:
 			logger.info(f'No usage found for {day}')
 			update_usage(0, 0, 0)
+			# try again
+			return get_usage(day)
 
 def get_users_count(subscribed = None, blocked = None):
 	result = s.query(User)
