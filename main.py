@@ -1,7 +1,6 @@
 import bs4
-import requests
-from bs4 import BeautifulSoup
 import threading
+from bs4 import BeautifulSoup
 import telebot
 from telebot import types
 from telebot.util import MAX_MESSAGE_LENGTH 
@@ -11,8 +10,15 @@ from db.handler import subscribe_user, unsubscribe_user, add_user, is_subscribed
 import time
 import schedule
 import datetime
+import logging
+import asyncio 
+import aiohttp
+from telebot.async_telebot import AsyncTeleBot
 
-bot = telebot.TeleBot(bot_token)
+logger = telebot.logger
+logger.setLevel(logging.INFO)
+
+bot = AsyncTeleBot(bot_token)
 
 # Definition of constants
 
@@ -88,7 +94,7 @@ def recursive_unwrap(tag, v):
 		v[-1] += tag_text
 	
 def parse_response(r):
-	sp = BeautifulSoup(r.text, features='html.parser')
+	sp = BeautifulSoup(r, features='html.parser')
 	definitions = ['']
 	for article in sp.find('div', {'id': 'resultados'}).find_all('article', recursive=False):
 		recursive_unwrap(article, definitions)
@@ -98,106 +104,103 @@ def parse_response(r):
 
 # RAE queries
 
-def get_definitions(entry):
-	r = requests.get(f'https://dle.rae.es/?w={entry}', headers=MOZILLA_HEADERS)
-	return parse_response(r)
+async def get_definitions(entry, session):
+	async with session.get(f'https://dle.rae.es/?w={entry}', headers=MOZILLA_HEADERS) as r:
+		return parse_response(await r.text())
 
-def get_list(entry):
-	r = requests.get(f'https://dle.rae.es/srv/keys?q={entry}', headers=MOZILLA_HEADERS)
-	return ast.literal_eval(r.text)
+async def get_list(entry, session):
+	async with await session.get(f'https://dle.rae.es/srv/keys?q={entry}', headers=MOZILLA_HEADERS) as r:
+		return ast.literal_eval(await r.text())
 
-def get_random():
-	r = requests.get('https://dle.rae.es/?m=random', headers=MOZILLA_HEADERS)
-	return parse_response(r)
+async def get_random():
+	async with aiohttp.ClientSession() as session:
+		async with session.get('https://dle.rae.es/?m=random', headers=MOZILLA_HEADERS) as r:
+			return parse_response(await r.text())
 
-def get_word_of_the_day():
-	r = requests.get('https://dle.rae.es/', headers=MOZILLA_HEADERS)
-	sp = BeautifulSoup(r.text, features='html.parser')
-	return sp.find(id='wotd').text
+async def get_word_of_the_day(session):
+	async with aiohttp.ClientSession() as session:
+		async with session.get('https://dle.rae.es/', headers=MOZILLA_HEADERS) as r:
+			sp = BeautifulSoup(await r.text(), features='html.parser')
+			return sp.find(id='wotd').text
 
 
 # Bot queries
 
 @bot.inline_handler(lambda query: len(query.query) > 0)
-def inline_query_handler(query):
+async def inline_query_handler(query):
 	try:
-		l = get_list(query.query)
-
-		res = []
-		def add_res(i, entry):
-			definitions_list = get_definitions(entry)
+		res = [] # inline query results
+		async def add_res(i, entry, session):
+			definitions_list = await get_definitions(entry, session) # get definition, might be spread in several messages
 			for idx, definition_text in enumerate(definitions_list):
 				definition = types.InputTextMessageContent(definition_text, parse_mode='HTML')
 				r = types.InlineQueryResultArticle(f'{i}_{idx}', title=entry, input_message_content=definition, description=definition_text)
 				res.append((f'{i}_{idx}',r))
 
-		threads = []
-
-		for i in range(len(l)):
-			threads.append(threading.Thread(target=add_res, args=(i, l[i])))
-
-		for i in range(len(l)):
-			threads[i].start()
-
-		for i in range(len(l)):
-			threads[i].join()
+		async with aiohttp.ClientSession() as session:
+			tasks = [] # concurrent tasks
+			words_list = await get_list(query.query, session)
+			for i, word in enumerate(words_list):
+				tasks.append(add_res(i, word, session))
+			await asyncio.gather(*tasks, return_exceptions=True)
 			
-		res.sort()
-		res = [x[1] for x in res]
+			res.sort() # alphabetic sort
+			res = [x[1] for x in res]
 
-		if len(res) == 0:
-			bot.answer_inline_query(query.id, res, switch_pm_text=MSG_NO_RESULT, switch_pm_parameter='no_result')
-		else:
-			bot.answer_inline_query(query.id, res)
-		
-	except Exception as e:
-		print(e)
+			if len(res) == 0:
+				await bot.answer_inline_query(query.id, res, switch_pm_text=MSG_NO_RESULT, switch_pm_parameter='no_result')
+			else:
+				await bot.answer_inline_query(query.id, res)
+			
+	except Exception:
+		logger.exception('Something went wrong:\n')
 
 @bot.message_handler(commands=['start'])
-def start_handler(message):
+async def start_handler(message):
 	if message.chat.type == 'private':
 		if 'no_result' in message.text:
-			bot.send_message(message.chat.id, MSG_NO_RESULT_LONG, parse_mode='markdown', disable_web_page_preview=True, reply_markup=INLINE_KEYBOARD_BUSCAR_DEFINICION)
+			await bot.send_message(message.chat.id, MSG_NO_RESULT_LONG, parse_mode='markdown', disable_web_page_preview=True, reply_markup=INLINE_KEYBOARD_BUSCAR_DEFINICION)
 		else:
-			bot.send_message(message.chat.id, MSG_START, parse_mode='markdown', disable_web_page_preview=True, reply_markup=REPLY_KEYBOARD)
+			await bot.send_message(message.chat.id, MSG_START, parse_mode='markdown', disable_web_page_preview=True, reply_markup=REPLY_KEYBOARD)
 			add_user(message.from_user.id)
 
 @bot.message_handler(commands=['ayuda', 'help'])
-def help_handler(message):
-	bot.send_message(message.chat.id, MSG_AYUDA, reply_markup=INLINE_KEYBOARD_BUSCAR_DEFINICION, parse_mode='HTML', disable_web_page_preview=True)
+async def help_handler(message):
+	await	bot.send_message(message.chat.id, MSG_AYUDA, reply_markup=INLINE_KEYBOARD_BUSCAR_DEFINICION, parse_mode='HTML', disable_web_page_preview=True)
 
 @bot.message_handler(commands=['ejemplo'])
-def ejemplo_handler(message):
-	bot.send_animation(message.chat.id, MSG_EJEMPLO)
+async def ejemplo_handler(message):
+	await bot.send_animation(message.chat.id, MSG_EJEMPLO)
 
 @bot.message_handler(commands=['aleatorio'])
-def aleatorio_handler(message):
-	bot.send_chat_action(message.chat.id, 'typing')
-	definitions = get_random()
+async def aleatorio_handler(message):
+	await bot.send_chat_action(message.chat.id, 'typing')
+	definitions = await get_random()
 	for page in definitions:
-		bot.send_message(message.chat.id, page, parse_mode='HTML')
+		await	bot.send_message(message.chat.id, page, parse_mode='HTML')
 
-def update_word_of_the_day():
+async def update_word_of_the_day():
 	global word_of_the_day, wotd_definitions
 
-	word_of_the_day = get_word_of_the_day()
-	wotd_definitions = get_definitions(word_of_the_day.split(',')[0]) # ex.: cabalístico, ca
+	async with aiohttp.ClientSession() as session:
+		word_of_the_day = await get_word_of_the_day(session)
+		wotd_definitions = await get_definitions(word_of_the_day.split(',')[0], session) # ex.: cabalístico, ca
 
-def send_word_of_the_day(chat_id):
+async def send_word_of_the_day(chat_id):
 	if word_of_the_day == '':
-		bot.send_chat_action(chat_id, 'typing')
-		update_word_of_the_day()
-	bot.send_message(chat_id, MSG_PDD.format(wotd_definitions[0].lstrip()), parse_mode='HTML')	
+		await bot.send_chat_action(chat_id, 'typing')
+		await update_word_of_the_day()
+	await	bot.send_message(chat_id, MSG_PDD.format(wotd_definitions[0].lstrip()), parse_mode='HTML')	
 	for page in wotd_definitions[1:]:
-		bot.send_message(chat_id, page, parse_mode='HTML')
+		await	bot.send_message(chat_id, page, parse_mode='HTML')
 
 
 @bot.message_handler(commands=['pdd'])
-def pdd_handler(message):
-	send_word_of_the_day(message.chat.id)
+async def pdd_handler(message):
+	await send_word_of_the_day(message.chat.id)
 
 @bot.message_handler(commands=['suscripcion'])
-def suscripcion_handler(message):
+async def suscripcion_handler(message):
 	if message.chat.type == 'private':
 		tgid = message.from_user.id
 		first_name = message.from_user.first_name
@@ -205,20 +208,20 @@ def suscripcion_handler(message):
 		text = MSG_PDD_SUSB.format(first_name, 'SÍ' if is_sus else 'NO')
 		keyboard = types.InlineKeyboardMarkup()
 		keyboard.row(types.InlineKeyboardButton('Desuscribirme' if is_sus else '¡Suscribirme!', callback_data='desubs' if is_sus else 'subs'))
-		bot.send_message(message.chat.id, text, reply_markup=keyboard, parse_mode='HTML')
+		await	bot.send_message(message.chat.id, text, reply_markup=keyboard, parse_mode='HTML')
 
 @bot.message_handler(commands=['users'])
-def check_users_handler(message):
+async def check_users_handler(message):
 	if message.from_user.id == admin_id:
 		commands = message.text.split(' ') # /users command
 		if len(commands) < 2:
 			n = get_users_count()
 		elif commands[1] == 's':
 			n = get_users_count(subscribed=True)
-		bot.send_message(admin_id, f'{n} users')
+		await	bot.send_message(admin_id, f'{n} users')
 
 @bot.message_handler(commands=['usage'])
-def check_usage_handler(message):
+async def check_usage_handler(message):
 	if message.from_user.id == admin_id:
 		commands = message.text.split(' ') # /usage ndays
 		if len(commands) < 2:
@@ -247,11 +250,11 @@ def check_usage_handler(message):
 		text += f'<pre>Total users: {get_users_count()}</pre>\n'
 		text += f'<pre>Subscribed users: {get_users_count(subscribed=True)}</pre>\n'
 
-		bot.send_message(admin_id, text, parse_mode='HTML')
+		await	bot.send_message(admin_id, text, parse_mode='HTML')
 
 
 @bot.callback_query_handler(lambda query: True)
-def handle_callback_query(query):
+async def handle_callback_query(query):
 	if query.data in ['desubs', 'subs']:
 		tgid = query.from_user.id
 		new_text = query.message.text
@@ -266,8 +269,8 @@ def handle_callback_query(query):
 			new_text += '\n\n ¡Listo!, ya no estás suscrito.'
 			query_answer = '❌ Te has desuscrito.'
 
-		bot.answer_callback_query(query.id, query_answer)
-		bot.edit_message_text(new_text, query.message.chat.id, query.message.id)
+		await bot.answer_callback_query(query.id, query_answer)
+		await bot.edit_message_text(new_text, query.message.chat.id, query.message.id)
 
 keyboard_command_function = {
 	KEY_PDD : pdd_handler,
@@ -277,27 +280,28 @@ keyboard_command_function = {
 }
 
 @bot.message_handler(content_types=['text'])
-def text_messages_handler(message):
+async def text_messages_handler(message):
 	global new_searches, new_users
 
 	if message.chat.type == 'private':
 		new_users.add(message.from_user.id) # add user
 		if message.text in keyboard_command_function:
-			keyboard_command_function[message.text](message)
-		elif not message.via_bot or message.via_bot.id != bot.get_me().id:
+			await keyboard_command_function[message.text](message)
+		elif not message.via_bot or message.via_bot.id != (await bot.get_me()).id:
 			new_searches += 1 # incdrement searches
 			word = message.text.split()[0].lower()
-			list = get_list(word)
-			if word in list:
-				bot.send_chat_action(message.chat.id, 'typing')
-				definitions_list = get_definitions(word)
-				for definition_text in definitions_list:
-					bot.send_message(message.chat.id, definition_text, parse_mode='HTML', reply_markup=REPLY_KEYBOARD)
-			else:
-				bot.send_message(message.chat.id, MSG_NO_RESULT_DIRECT_MESSAGE.format(word), parse_mode='HTML',reply_markup=INLINE_KEYBOARD_BUSCAR_DEFINICION_CURRENT_CHAT)
+			async with aiohttp.ClientSession() as session:
+				list = await get_list(word, session)
+				if word in list:
+					await bot.send_chat_action(message.chat.id, 'typing')
+					definitions_list = await get_definitions(word, session)
+					for definition_text in definitions_list:
+						await bot.send_message(message.chat.id, definition_text, parse_mode='HTML', reply_markup=REPLY_KEYBOARD)
+				else:
+					await bot.send_message(message.chat.id, MSG_NO_RESULT_DIRECT_MESSAGE.format(word), parse_mode='HTML',reply_markup=INLINE_KEYBOARD_BUSCAR_DEFINICION_CURRENT_CHAT)
 
 @bot.chosen_inline_handler(lambda query: True)
-def handle_chosen_inline(result):
+async def handle_chosen_inline(result):
 	global new_users, new_inline_searches
 	new_users.add(result.from_user.id) # add user
 	new_inline_searches += 1 # increment inline searches
@@ -329,12 +333,12 @@ def run_continuously(interval=60):
     return cease_continuous_run
 
 
-def broadcast_word_of_the_day():
-	update_word_of_the_day()
+async def broadcast_word_of_the_day():
+	await update_word_of_the_day()
 	subs = get_susbcribed_ids()
 
 	for sub_id in subs:
-		send_word_of_the_day(sub_id)
+		await send_word_of_the_day(sub_id)
 
 def update_database():
 	global actually_new_count, new_searches, new_inline_searches
@@ -364,12 +368,12 @@ def init():
 		new_searches = today_usage.messages
 
 if __name__ == '__main__':
-	init()
+	# init()
 
-	# schedule
-	schedule.every().day.at('12:00').do(broadcast_word_of_the_day)
-	schedule.every().minute.do(update_database)
+	# # schedule
+	# schedule.every().day.at('12:00').do(broadcast_word_of_the_day)
+	# schedule.every().minute.do(update_database)
 
-	stop_run_continuously = run_continuously()
-	bot.infinity_polling()
-	stop_run_continuously.set()
+	# stop_run_continuously = run_continuously()
+	asyncio.run(bot.infinity_polling())
+	# stop_run_continuously.set()
