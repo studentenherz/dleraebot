@@ -362,6 +362,7 @@ def update_database():
 def init():
 	global actually_new_count, new_searches, new_inline_searches
 	today_usage = get_usage(datetime.date.today())
+	
 	if today_usage:
 		actually_new_count = today_usage.users
 		new_inline_searches = today_usage.queries
@@ -375,5 +376,11 @@ if __name__ == '__main__':
 	# schedule.every().minute.do(update_database)
 
 	# stop_run_continuously = run_continuously()
-	asyncio.run(bot.infinity_polling())
+
+	loop = asyncio.get_event_loop()
+	try:
+		loop.run_until_complete(bot.infinity_polling(logger_level=logging.INFO))
+	except KeyboardInterrupt:
+		# logger.info('Ctrl-C recieved, exiting.')
+		pass
 	# stop_run_continuously.set()
