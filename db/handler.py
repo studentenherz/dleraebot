@@ -4,8 +4,6 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 import datetime
 
-from sqlalchemy.sql.expression import update
-
 from .models import Base, User, Usage
 from .settings import db_name, db_location
 
