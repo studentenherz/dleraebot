@@ -121,7 +121,7 @@ def update_user(tgid, subscribed = None, blocked = None, messages = None, querie
 			user.queries = queries
 		s.add(user)
 		s.commit()
-		logger.lessinfo(f'Update user ==> id: {user.tgid}; subscribed: {user.subscribed}; blocked: {user.blocked}; messages: {user.messages}; queries: {user.queries};')
+		# logger.lessinfo(f'Update user ==> id: {user.tgid}; subscribed: {user.subscribed}; blocked: {user.blocked}; messages: {user.messages}; queries: {user.queries};')
 		return 0
 	except sqlalchemy.orm.exc.NoResultFound:
 		s.add(User(tgid=tgid, subscribed=subscribed, blocked=blocked, messages=messages, queries=queries))
@@ -173,7 +173,7 @@ def update_usage(messages, queries, users):
 		day_usage.users = users
 		s.add(day_usage)
 		s.commit()
-		logger.lessinfo('Usage data updated')
+		# logger.lessinfo('Usage data updated')
 		return 0
 	except sqlalchemy.orm.exc.NoResultFound:
 		logger.lessinfo('Creating new day usage row.')

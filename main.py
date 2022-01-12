@@ -1,19 +1,16 @@
 import bs4
-import threading
 from bs4 import BeautifulSoup
-import telebot
 from telebot import types
 from telebot.util import MAX_MESSAGE_LENGTH 
 from credentials import bot_token, admin_id
 import ast
 from db.handler import subscribe_user, unsubscribe_user, add_user, is_subscribed, get_susbcribed_ids, get_users_count, update_usage, get_usage_last, get_usage
-import time
-import schedule
 import datetime
 import logging
 import asyncio 
 import aiohttp
 from telebot.async_telebot import AsyncTeleBot
+from scheduler import run_every, MINUTE, DAY
 
 import logging
 
@@ -329,32 +326,6 @@ async def handle_chosen_inline(result):
 	new_users.add(result.from_user.id) # add user
 	new_inline_searches += 1 # increment inline searches
 
-# Scheduling
-
-def run_continuously(interval=60):
-    """Continuously run, while executing pending jobs at each
-    elapsed time interval.
-    @return cease_continuous_run: threading. Event which can
-    be set to cease continuous run. Please note that it is
-    *intended behavior that run_continuously() does not run
-    missed jobs*. For example, if you've registered a job that
-    should run every minute and you set a continuous run
-    interval of one hour then your job won't be run 60 times
-    at each interval but only once.
-    """
-    cease_continuous_run = threading.Event()
-
-    class ScheduleThread(threading.Thread):
-        @classmethod
-        def run(cls):
-            while not cease_continuous_run.is_set():
-                schedule.run_pending()
-                time.sleep(interval)
-
-    continuous_thread = ScheduleThread()
-    continuous_thread.start()
-    return cease_continuous_run
-
 
 async def broadcast_word_of_the_day():
 	await update_word_of_the_day()
@@ -363,13 +334,12 @@ async def broadcast_word_of_the_day():
 	for sub_id in subs:
 		await send_word_of_the_day(sub_id)
 
-def update_database():
+async def update_database():
 	global actually_new_count, new_searches, new_inline_searches
 
 	# update users
 	for utgid in new_users:
 		actually_new_count += add_user(utgid)
-	new_users.clear()
 
 	#update usage
 	is_new_day = update_usage(new_searches, new_inline_searches, actually_new_count)
@@ -378,6 +348,7 @@ def update_database():
 		new_searches = 0
 		new_inline_searches = 0
 		actually_new_count = 0
+		new_users.clear()
 
 def init():
 	global actually_new_count, new_searches, new_inline_searches
@@ -388,19 +359,23 @@ def init():
 		new_inline_searches = today_usage.queries
 		new_searches = today_usage.messages
 
+# Scheduling
+async def main():
+	update_db_task = asyncio.create_task(run_every(MINUTE, update_database, start='now'))
+	broadcast_word_of_the_day_task = asyncio.create_task(run_every(DAY, broadcast_word_of_the_day, start='00:28:00'))
+
+	polling_task = asyncio.create_task(bot.infinity_polling(logger_level=logging.WARNING))
+
+	await update_db_task
+	await broadcast_word_of_the_day_task
+	await polling_task
+
 if __name__ == '__main__':
 	init()
 
-	# schedule
-	schedule.every().day.at('12:00').do(broadcast_word_of_the_day)
-	schedule.every().minute.do(update_database)
-
-	stop_run_continuously = run_continuously()
-
 	loop = asyncio.get_event_loop()
 	try:
-		loop.run_until_complete(bot.infinity_polling(logger_level=logging.WARNING))
+		loop.run_until_complete(main())
 	except KeyboardInterrupt:
 		logger.lessinfo('Ctrl-C recieved, exiting.')
-		pass
-	stop_run_continuously.set()
+		exit(0)
