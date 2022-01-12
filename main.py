@@ -285,6 +285,14 @@ async def check_usage_handler(message):
 
 		await	bot_send_message(admin_id, text, parse_mode='HTML')
 
+@bot.message_handler(commands=['broadcast'])
+async def broadcast_handler(message):
+	if message.from_user.id == admin_id:
+		text = message.html_text.split(' ', 1)[1]
+		subs = get_susbcribed_ids()
+
+		for sub_id in subs:
+			await bot_send_message(sub_id, text, parse_mode='HTML')	
 
 @bot.callback_query_handler(lambda query: True)
 async def handle_callback_query(query):
@@ -391,4 +399,4 @@ if __name__ == '__main__':
 		loop.run_until_complete(main())
 	except KeyboardInterrupt:
 		logger.lessinfo('Ctrl-C recieved, exiting.')
-		exit(0)
+		exit(0)	
