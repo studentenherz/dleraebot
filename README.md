@@ -38,5 +38,5 @@ Edit your bot token in the file. If you don't have one, you can get it using @Bo
 ### Running the bot
 
 ```bash
-python server.py
+python main.py
 ```
