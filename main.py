@@ -4,7 +4,7 @@ from telebot import types
 from telebot.util import MAX_MESSAGE_LENGTH 
 from credentials import bot_token, admin_id
 import ast
-from db.handler import subscribe_user, unsubscribe_user, add_user, is_subscribed, get_susbcribed_ids, get_users_count, update_usage, get_usage_last, get_usage, block_user
+from db.handler import subscribe_user, unsubscribe_user, add_user, is_subscribed, get_susbcribed_ids, get_users_count, update_usage, get_usage_last, get_usage, block_user, unblock_user, get_blocked_ids
 import datetime
 import logging
 import asyncio 
@@ -293,6 +293,39 @@ async def broadcast_handler(message):
 
 		for sub_id in subs:
 			await bot_send_message(sub_id, text, parse_mode='HTML')	
+
+@bot.message_handler(commands=['blocked'])
+async def get_blocked_handler(message):
+	if message.from_user.id == admin_id:
+		list = get_blocked_ids()
+
+		text = '<pre>.::Blocked users::.'
+		for blocked_id in list:
+			text += f'\n{blocked_id}'
+		text += '</pre>'
+
+		await bot.send_message(admin_id, text, parse_mode='HTML')
+
+@bot.message_handler(commands=['block'])
+async def block_user_handler(message):
+	if message.from_user.id == admin_id:
+		try:
+			id = int(message.text.split(' ', 1)[1])
+			block_user(id)
+		except Exception as e:
+			logger.error(f'Bad user id\n {e}')
+			await bot.send_message(admin_id, '<pre>Bad user id</pre>', parse_mode='HTML')
+
+@bot.message_handler(commands=['unblock'])
+async def unblock_user_handler(message):
+	if message.from_user.id == admin_id:
+		try:
+			id = int(message.text.split(' ', 1)[1])
+			unblock_user(id)
+		except Exception as e:
+			logger.error(f'Bad user id\n {e}')
+			await bot.send_message(admin_id, '<pre>Bad user id</pre>', parse_mode='HTML')
+
 
 @bot.callback_query_handler(lambda query: True)
 async def handle_callback_query(query):

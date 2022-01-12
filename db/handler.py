@@ -105,7 +105,7 @@ def get_user(tgid):
 ###### SETTING DATA  #######         
 ############################
 
-def update_user(tgid, subscribed = None, blocked = None, messages = None, queries = None):
+def update_user(tgid, subscribed = None, blocked = None, messages = None, queries = None, strict = None):
 	"""
 		Updates user, returns 0 if it edited user and 1 if it added the user
 	"""
@@ -124,6 +124,8 @@ def update_user(tgid, subscribed = None, blocked = None, messages = None, querie
 		# logger.lessinfo(f'Update user ==> id: {user.tgid}; subscribed: {user.subscribed}; blocked: {user.blocked}; messages: {user.messages}; queries: {user.queries};')
 		return 0
 	except sqlalchemy.orm.exc.NoResultFound:
+		if strict: # dont create
+			return 0
 		s.add(User(tgid=tgid, subscribed=subscribed, blocked=blocked, messages=messages, queries=queries))
 		s.commit()
 		logger.lessinfo(f'Added user ==> id: {tgid}; subscribed: {subscribed}; blocked: {blocked}; messages: {messages}; queries: {queries};')
@@ -141,16 +143,20 @@ def unsubscribe_user(tgid):
 	update_user(tgid, subscribed=False)
 
 def block_user(tgid):
-	update_user(tgid, blocked=True)
+	update_user(tgid, blocked=True, strict=True)
 	logger.lessinfo(f'Blocked user {tgid}')
 
 def unblock_user(tgid):
-	update_user(tgid, blocked=False)
+	update_user(tgid, blocked=False, strict=True)
 	logger.lessinfo(f'Unblocked user {tgid}')
 
 def get_susbcribed_ids():
 	subs = get_users(subscribed=True, blocked=False)
 	return [sub.tgid for sub in subs]
+
+def get_blocked_ids():
+	blocked_list = get_users(blocked=True)
+	return [blocked.tgid for blocked in blocked_list]
 
 def add_user(tgid):
 	return update_user(tgid)
