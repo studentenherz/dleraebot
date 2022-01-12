@@ -9,13 +9,13 @@ You can inspect a live version of the code in the telegram bot @dleraebot.
 ### Clone the repository
 
 ```bash
-git clone https://github.com/studentenherz/dleraebot.git
+$ git clone https://github.com/studentenherz/dleraebot.git
 ```
 
 ### Install required dependencies
 
 ```bash
-pip install -r requirements.txt
+$ pip install -r requirements.txt
 ```
 
 ### Create your configuration file
@@ -38,5 +38,11 @@ Edit your bot token in the file. If you don't have one, you can get it using @Bo
 ### Running the bot
 
 ```bash
-python main.py
+$ python main.py
+```
+
+in order to save the logs and keep seing them on screen run 
+
+```bash
+$ python main.py 2>&1 | tee -a bot.log
 ```
