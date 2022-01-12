@@ -375,7 +375,7 @@ def init():
 # Scheduling
 async def main():
 	update_db_task = asyncio.create_task(run_every(MINUTE, update_database, start='now'))
-	broadcast_word_of_the_day_task = asyncio.create_task(run_every(MINUTE, broadcast_word_of_the_day, start='12:00:00'))
+	broadcast_word_of_the_day_task = asyncio.create_task(run_every(DAY, broadcast_word_of_the_day, start='12:00:00'))
 
 	polling_task = asyncio.create_task(bot.infinity_polling(logger_level=logging.WARNING))
 
