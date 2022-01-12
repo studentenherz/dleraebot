@@ -111,17 +111,23 @@ def update_user(tgid, subscribed = None, blocked = None, messages = None, querie
 	"""
 	try: 
 		user = s.query(User).filter(User.tgid == tgid).one()
+		updated = False
 		if subscribed != None:
+			updated = updated or (user.subscribed != subscribed)
 			user.subscribed = subscribed
 		if blocked != None:
+			updated = updated or (user.blocked != blocked)
 			user.blocked = blocked
 		if messages:
+			updated = updated or (user.messages != messages)
 			user.messages = messages
 		if queries:
+			updated = updated or (user.queries != queries)
 			user.queries = queries
 		s.add(user)
 		s.commit()
-		# logger.lessinfo(f'Update user ==> id: {user.tgid}; subscribed: {user.subscribed}; blocked: {user.blocked}; messages: {user.messages}; queries: {user.queries};')
+		if updated: 
+			logger.lessinfo(f'Update user ==> id: {user.tgid}; subscribed: {user.subscribed}; blocked: {user.blocked}; messages: {user.messages}; queries: {user.queries};')
 		return 0
 	except sqlalchemy.orm.exc.NoResultFound:
 		if strict: # dont create
@@ -159,7 +165,7 @@ def get_blocked_ids():
 	return [blocked.tgid for blocked in blocked_list]
 
 def add_user(tgid):
-	return update_user(tgid)
+	return update_user(tgid, blocked=False)
 
 def is_subscribed(tgid):
 	user = get_user(tgid)
