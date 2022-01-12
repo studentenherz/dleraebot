@@ -4,12 +4,13 @@ from telebot import types
 from telebot.util import MAX_MESSAGE_LENGTH 
 from credentials import bot_token, admin_id
 import ast
-from db.handler import subscribe_user, unsubscribe_user, add_user, is_subscribed, get_susbcribed_ids, get_users_count, update_usage, get_usage_last, get_usage
+from db.handler import subscribe_user, unsubscribe_user, add_user, is_subscribed, get_susbcribed_ids, get_users_count, update_usage, get_usage_last, get_usage, block_user
 import datetime
 import logging
 import asyncio 
 import aiohttp
 from telebot.async_telebot import AsyncTeleBot
+from telebot.asyncio_helper import ApiTelegramException
 from scheduler import run_every, MINUTE, DAY
 
 import logging
@@ -144,6 +145,18 @@ async def get_word_of_the_day(session):
 			return sp.find(id='wotd').text
 
 
+# Wrapper around bot.send_message for blocked users
+async def bot_send_message(*args, **kwargs):
+	try:
+		await bot.send_message(*args, **kwargs)
+	except ApiTelegramException as e:
+		logger.error(f'In sendMessage({args}, {kwargs}) {e.result_json}')
+		if len(args) > 0:
+			id = int(args[0])
+		else:
+			id = int(kwargs['chat_id'])
+		block_user(id)
+
 # Bot queries
 
 @bot.inline_handler(lambda query: len(query.query) > 0)
@@ -179,14 +192,14 @@ async def inline_query_handler(query):
 async def start_handler(message):
 	if message.chat.type == 'private':
 		if 'no_result' in message.text:
-			await bot.send_message(message.chat.id, MSG_NO_RESULT_LONG, parse_mode='markdown', disable_web_page_preview=True, reply_markup=INLINE_KEYBOARD_BUSCAR_DEFINICION)
+			await bot_send_message(message.chat.id, MSG_NO_RESULT_LONG, parse_mode='markdown', disable_web_page_preview=True, reply_markup=INLINE_KEYBOARD_BUSCAR_DEFINICION)
 		else:
-			await bot.send_message(message.chat.id, MSG_START, parse_mode='markdown', disable_web_page_preview=True, reply_markup=REPLY_KEYBOARD)
+			await bot_send_message(message.chat.id, MSG_START, parse_mode='markdown', disable_web_page_preview=True, reply_markup=REPLY_KEYBOARD)
 			add_user(message.from_user.id)
 
 @bot.message_handler(commands=['ayuda', 'help'])
 async def help_handler(message):
-	await	bot.send_message(message.chat.id, MSG_AYUDA, reply_markup=INLINE_KEYBOARD_BUSCAR_DEFINICION, parse_mode='HTML', disable_web_page_preview=True)
+	await	bot_send_message(message.chat.id, MSG_AYUDA, reply_markup=INLINE_KEYBOARD_BUSCAR_DEFINICION, parse_mode='HTML', disable_web_page_preview=True)
 
 @bot.message_handler(commands=['ejemplo'])
 async def ejemplo_handler(message):
@@ -197,7 +210,7 @@ async def aleatorio_handler(message):
 	await bot.send_chat_action(message.chat.id, 'typing')
 	definitions = await get_random()
 	for page in definitions:
-		await	bot.send_message(message.chat.id, page, parse_mode='HTML')
+		await	bot_send_message(message.chat.id, page, parse_mode='HTML')
 
 async def update_word_of_the_day():
 	global word_of_the_day, wotd_definitions
@@ -210,9 +223,9 @@ async def send_word_of_the_day(chat_id):
 	if word_of_the_day == '':
 		await bot.send_chat_action(chat_id, 'typing')
 		await update_word_of_the_day()
-	await	bot.send_message(chat_id, MSG_PDD.format(wotd_definitions[0].lstrip()), parse_mode='HTML')	
+	await	bot_send_message(chat_id, MSG_PDD.format(wotd_definitions[0].lstrip()), parse_mode='HTML')	
 	for page in wotd_definitions[1:]:
-		await	bot.send_message(chat_id, page, parse_mode='HTML')
+		await	bot_send_message(chat_id, page, parse_mode='HTML')
 
 
 @bot.message_handler(commands=['pdd'])
@@ -228,7 +241,7 @@ async def suscripcion_handler(message):
 		text = MSG_PDD_SUSB.format(first_name, 'SÍ' if is_sus else 'NO')
 		keyboard = types.InlineKeyboardMarkup()
 		keyboard.row(types.InlineKeyboardButton('Desuscribirme' if is_sus else '¡Suscribirme!', callback_data='desubs' if is_sus else 'subs'))
-		await	bot.send_message(message.chat.id, text, reply_markup=keyboard, parse_mode='HTML')
+		await	bot_send_message(message.chat.id, text, reply_markup=keyboard, parse_mode='HTML')
 
 @bot.message_handler(commands=['users'])
 async def check_users_handler(message):
@@ -238,7 +251,7 @@ async def check_users_handler(message):
 			n = get_users_count()
 		elif commands[1] == 's':
 			n = get_users_count(subscribed=True)
-		await	bot.send_message(admin_id, f'{n} users')
+		await	bot_send_message(admin_id, f'{n} users')
 
 @bot.message_handler(commands=['usage'])
 async def check_usage_handler(message):
@@ -270,7 +283,7 @@ async def check_usage_handler(message):
 		text += f'<pre>Total users: {get_users_count()}</pre>\n'
 		text += f'<pre>Subscribed users: {get_users_count(subscribed=True)}</pre>\n'
 
-		await	bot.send_message(admin_id, text, parse_mode='HTML')
+		await	bot_send_message(admin_id, text, parse_mode='HTML')
 
 
 @bot.callback_query_handler(lambda query: True)
@@ -316,9 +329,9 @@ async def text_messages_handler(message):
 					await bot.send_chat_action(message.chat.id, 'typing')
 					definitions_list = await get_definitions(word, session)
 					for definition_text in definitions_list:
-						await bot.send_message(message.chat.id, definition_text, parse_mode='HTML', reply_markup=REPLY_KEYBOARD)
+						await bot_send_message(message.chat.id, definition_text, parse_mode='HTML', reply_markup=REPLY_KEYBOARD)
 				else:
-					await bot.send_message(message.chat.id, MSG_NO_RESULT_DIRECT_MESSAGE.format(word), parse_mode='HTML',reply_markup=INLINE_KEYBOARD_BUSCAR_DEFINICION_CURRENT_CHAT)
+					await bot_send_message(message.chat.id, MSG_NO_RESULT_DIRECT_MESSAGE.format(word), parse_mode='HTML',reply_markup=INLINE_KEYBOARD_BUSCAR_DEFINICION_CURRENT_CHAT)
 
 @bot.chosen_inline_handler(lambda query: True)
 async def handle_chosen_inline(result):
@@ -362,7 +375,7 @@ def init():
 # Scheduling
 async def main():
 	update_db_task = asyncio.create_task(run_every(MINUTE, update_database, start='now'))
-	broadcast_word_of_the_day_task = asyncio.create_task(run_every(DAY, broadcast_word_of_the_day, start='00:28:00'))
+	broadcast_word_of_the_day_task = asyncio.create_task(run_every(MINUTE, broadcast_word_of_the_day, start='12:00:00'))
 
 	polling_task = asyncio.create_task(bot.infinity_polling(logger_level=logging.WARNING))
 

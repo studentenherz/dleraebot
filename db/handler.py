@@ -142,9 +142,11 @@ def unsubscribe_user(tgid):
 
 def block_user(tgid):
 	update_user(tgid, blocked=True)
+	logger.lessinfo(f'Blocked user {tgid}')
 
 def unblock_user(tgid):
 	update_user(tgid, blocked=False)
+	logger.lessinfo(f'Unblocked user {tgid}')
 
 def get_susbcribed_ids():
 	subs = get_users(subscribed=True, blocked=False)
