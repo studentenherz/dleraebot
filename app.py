@@ -436,6 +436,8 @@ app.router.add_get(f'/{bot_token}/updateDB', update_database)
 app.router.add_get(f'/{bot_token}/broadcastWOTD', broadcast_word_of_the_day)
 
 init()
-web.run_app(
-	app
-)
+
+if __name__ == '__main__':
+	web.run_app(
+		app
+	)
