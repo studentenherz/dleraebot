@@ -195,7 +195,7 @@ async def start_handler(message):
 			await bot_send_message(message.chat.id, MSG_NO_RESULT_LONG, parse_mode='markdown', disable_web_page_preview=True, reply_markup=INLINE_KEYBOARD_BUSCAR_DEFINICION)
 		else:
 			await bot_send_message(message.chat.id, MSG_START, parse_mode='markdown', disable_web_page_preview=True, reply_markup=REPLY_KEYBOARD)
-			add_user(message.from_user.id)
+			new_users.add(message.from_user.id)
 
 @bot.message_handler(commands=['ayuda', 'help'])
 async def help_handler(message):
