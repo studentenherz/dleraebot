@@ -12,9 +12,10 @@ def cli(broadcast):
 		response = requests.get(f'{HOST_URL}/{bot_token}/broadcastWOTD')
 		if response.status_code != 200:
 			logging.error(f'Broadcast responded with code {response.status_code}')
-	response = requests.get(f'{HOST_URL}/{bot_token}/updateDB')
-	if response.status_code != 200:
-			logging.error(f'Update responded with code {response.status_code}')
+	else:
+		response = requests.get(f'{HOST_URL}/{bot_token}/updateDB')
+		if response.status_code != 200:
+				logging.error(f'Update responded with code {response.status_code}')
 
 
 if __name__ == '__main__':
