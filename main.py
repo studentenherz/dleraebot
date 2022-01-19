@@ -11,7 +11,8 @@ import asyncio
 import aiohttp
 from telebot.async_telebot import AsyncTeleBot
 from telebot.asyncio_helper import ApiTelegramException
-from scheduler import run_every, MINUTE, DAY
+from aiohttp import web
+from credentials import HOST_URL
 
 import logging
 
@@ -41,8 +42,10 @@ logger.setLevel(LESSINFO)
 
 bot = AsyncTeleBot(bot_token)
 
-# Definition of constants
+app = web.Application()
 
+
+# Definition of constants
 
 MOZILLA_HEADERS = {'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:91.0) Gecko/20100101 Firefox/91.0'}
 MSG_START = 'No es necesario que inicies un chat con el bot para que funcione, tampoco es necesario que lo agregues a ningún grupo o canal (/ayuda para más información), pero ya que estás aquí te cuento algunas cosas:\n\n - los comandos están en español porque es un bot para obtener definiciones de palabras en español 😅.\n\n -Hace un tiempo le escribí a la RAE (a través de un formulario en su página web, quizá nunca me leyeron) proponiéndoles la idea de que hicieran este bot, si quisieran problablemente Telegram les diese un @ más corto como @dle y la marca de bot oficial.\n\nPuedes ver el código del bot en [GitHub](https://github.com/studentenherz/dleraebot), y puedes recibir noticias acerca del bot en @dleraebotchannel.'
@@ -381,14 +384,18 @@ async def handle_chosen_inline(result):
 	new_inline_searches += 1 # increment inline searches
 
 
-async def broadcast_word_of_the_day():
+async def broadcast_word_of_the_day(req = word_of_the_day):
+	# logger.lessinfo('Broadcasting')
 	await update_word_of_the_day()
 	subs = get_susbcribed_ids()
 
 	for sub_id in subs:
 		await send_word_of_the_day(sub_id)
 
-async def update_database():
+	return web.Response()
+
+async def update_database(req = None):
+	# logger.lessinfo('Updating database')
 	global actually_new_count, new_searches, new_inline_searches
 
 	# update users
@@ -404,6 +411,8 @@ async def update_database():
 		actually_new_count = 0
 		new_users.clear()
 
+	return web.Response()
+
 def init():
 	global actually_new_count, new_searches, new_inline_searches
 	today_usage = get_usage(datetime.date.today())
@@ -413,23 +422,20 @@ def init():
 		new_inline_searches = today_usage.queries
 		new_searches = today_usage.messages
 
-# Scheduling
-async def main():
-	update_db_task = asyncio.create_task(run_every(MINUTE, update_database, start='now'))
-	broadcast_word_of_the_day_task = asyncio.create_task(run_every(DAY, broadcast_word_of_the_day, start='12:00:00'))
+# Webapp 
 
-	polling_task = asyncio.create_task(bot.infinity_polling(logger_level=logging.WARNING))
+async def handle_webhook(request):
+	request_body_dict = await request.json()
+	print(request_body_dict)
+	update = types.Update.de_json(request_body_dict)
+	await bot.process_new_updates([update])
+	return web.Response()
 
-	await update_db_task
-	await broadcast_word_of_the_day_task
-	await polling_task
+app.router.add_post(f'/{bot_token}', handle_webhook)
+app.router.add_get(f'/{bot_token}/updateDB', update_database)
+app.router.add_get(f'/{bot_token}/broadcastWOTD', broadcast_word_of_the_day)
 
-if __name__ == '__main__':
-	init()
-
-	loop = asyncio.get_event_loop()
-	try:
-		loop.run_until_complete(main())
-	except KeyboardInterrupt:
-		logger.lessinfo('Ctrl-C recieved, exiting.')
-		exit(0)	
+init()
+web.run_app(
+	app
+)

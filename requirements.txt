@@ -5,6 +5,7 @@ attrs==21.4.0
 beautifulsoup4==4.9.3
 certifi==2021.5.30
 charset-normalizer==2.0.4
+click==8.0.3
 croniter==1.1.0
 frozenlist==1.2.0
 greenlet==1.1.2
