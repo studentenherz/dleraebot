@@ -423,7 +423,6 @@ def init():
 		new_searches = today_usage.messages
 
 # Webapp 
-
 async def handle_webhook(request):
 	request_body_dict = await request.json()
 	print(request_body_dict)
@@ -431,9 +430,14 @@ async def handle_webhook(request):
 	await bot.process_new_updates([update])
 	return web.Response()
 
+async def handle_set_webhook(request):
+	await bot.set_webhook(url=f'{HOST_URL}/{bot_token}')
+	return web.Response(text='Webhook set (hopefully)!')
+
 app.router.add_post(f'/{bot_token}', handle_webhook)
 app.router.add_get(f'/{bot_token}/updateDB', update_database)
 app.router.add_get(f'/{bot_token}/broadcastWOTD', broadcast_word_of_the_day)
+app.router.add_get(f'/{bot_token}/setWebhook', handle_set_webhook)
 
 init()
 

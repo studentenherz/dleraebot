@@ -37,12 +37,10 @@ Edit your bot token in the file. If you don't have one, you can get it using @Bo
 
 ### Running the bot
 
-```bash
-$ python main.py
-```
-
-in order to save the logs and keep seing them on screen run 
+Here the bot is set to use webhooks, with an `aiohttp` server through `gunicorn` 
 
 ```bash
-$ python main.py 2>&1 | tee -a bot.log
+$ gunicorn app:app -k aiohttp.worker.GunicornWebWorker -b <host>:<port>
 ```
+
+See [this](https://www.digitalocean.com/community/tutorials/how-to-serve-flask-applications-with-gunicorn-and-nginx-on-ubuntu-20-04) to learn how to set up the webserver with `nginx` + `gunicorn`. 
