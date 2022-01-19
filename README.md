@@ -44,3 +44,16 @@ $ gunicorn app:app -k aiohttp.worker.GunicornWebWorker -b <host>:<port>
 ```
 
 See [this](https://www.digitalocean.com/community/tutorials/how-to-serve-flask-applications-with-gunicorn-and-nginx-on-ubuntu-20-04) to learn how to set up the webserver with `nginx` + `gunicorn`. 
+
+Then, for database update and daily boradcast of the Word Of The Day, schedule the `cronjob.py` in the `crontab`:
+
+```bash
+$ crontab -e 
+```
+
+should have two lines like these:
+
+```bash
+* * * * * path/to/your/env/python /path/to/the/code/cronjob.py # update database every minute
+0 12 * * * path/to/your/env/python /path/to/the/code/cronjob.py --broadcast # broadcast every day at 12:00
+```
