@@ -9,6 +9,7 @@ click==8.0.3
 croniter==1.1.0
 frozenlist==1.2.0
 greenlet==1.1.2
+gunicorn==20.1.0
 idna==3.2
 multidict==5.2.0
 pyTelegramBotAPI==4.3.1
