@@ -297,9 +297,9 @@ async def broadcast_handler(message):
 		
 		await asyncio.gather(*tasks)
 
-	log_text = f'Broadcasted Message\n\n {text}\n\n to {len(subs)} users.'
-	logger.lessinfo(log_text)
-	await bot.send_message(admin_id,'<pre>Log: </pre>' + log_text, parse_mode='HTML')
+		log_text = f'Broadcasted Message\n\n {text}\n\n to {len(subs)} users.'
+		logger.lessinfo(log_text)
+		await bot.send_message(admin_id,'<pre>Log: </pre>' + log_text, parse_mode='HTML')
 
 @bot.message_handler(commands=['blocked'])
 async def get_blocked_handler(message):
