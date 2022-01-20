@@ -291,8 +291,15 @@ async def broadcast_handler(message):
 		text = message.html_text.split(' ', 1)[1]
 		subs = get_susbcribed_ids()
 
+		tasks = []
 		for sub_id in subs:
-			await bot_send_message(sub_id, text, parse_mode='HTML')	
+			tasks.append(bot_send_message(sub_id, text, parse_mode='HTML'))
+		
+		await asyncio.gather(*tasks)
+
+	log_text = f'Broadcasted Message\n\n {text}\n\n to {len(subs)} users.'
+	logger.lessinfo(log_text)
+	await bot.send_message(admin_id,'<pre>Log: </pre>' + log_text, parse_mode='HTML')
 
 @bot.message_handler(commands=['blocked'])
 async def get_blocked_handler(message):
@@ -385,8 +392,16 @@ async def broadcast_word_of_the_day():
 	await update_word_of_the_day()
 	subs = get_susbcribed_ids()
 
+	tasks = []
 	for sub_id in subs:
-		await send_word_of_the_day(sub_id)
+		tasks.append(send_word_of_the_day(sub_id))
+
+	await asyncio.gather(*tasks)
+
+	log_text = f'Broadcasted Word Of The Day to {len(subs)} users.'
+	logger.lessinfo(log_text)
+	await bot.send_message(admin_id,'<pre>Log: </pre>' + log_text, parse_mode='HTML')
+
 
 async def update_database():
 	global actually_new_count, new_searches, new_inline_searches
@@ -416,7 +431,7 @@ def init():
 # Scheduling
 async def main():
 	update_db_task = asyncio.create_task(run_every(MINUTE, update_database, start='now'))
-	broadcast_word_of_the_day_task = asyncio.create_task(run_every(DAY, broadcast_word_of_the_day, start='12:00:00'))
+	broadcast_word_of_the_day_task = asyncio.create_task(run_every(DAY, broadcast_word_of_the_day, start='12:08:30'))
 
 	polling_task = asyncio.create_task(bot.infinity_polling(logger_level=logging.WARNING))
 
