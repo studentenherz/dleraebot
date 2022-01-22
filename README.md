@@ -41,7 +41,7 @@ Edit your bot token in the file. If you don't have one, you can get it using @Bo
 $ python main.py
 ```
 
-in order to save the logs and keep seing them on screen run 
+in order to save the logs to a file named `bot.log` and keep seing them on screen run 
 
 ```bash
 $ python main.py 2>&1 | tee -a bot.log
