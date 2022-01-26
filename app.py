@@ -2,7 +2,7 @@ import bs4
 from bs4 import BeautifulSoup
 from telebot import types
 from telebot.util import MAX_MESSAGE_LENGTH 
-from credentials import bot_token, admin_id, bot_username, HOST_URL
+from credentials import bot_token, admin_id, bot_username, HOST_URL, local_server
 import ast
 from db.handler import subscribe_user, unsubscribe_user, add_user, is_subscribed, get_susbcribed_ids, get_users_count, update_usage, get_usage_last, get_usage, block_user, unblock_user, get_blocked_ids
 import datetime
@@ -12,6 +12,7 @@ import aiohttp
 from telebot.async_telebot import AsyncTeleBot
 from telebot.asyncio_helper import ApiTelegramException
 from aiohttp import web
+from telebot import asyncio_helper
 
 import logging
 
@@ -38,6 +39,10 @@ console_output_handler.setFormatter(formatter)
 logger.addHandler(console_output_handler)
 
 logger.setLevel(LESSINFO)
+
+if local_server != None:
+	asyncio_helper.API_URL = local_server + "/bot{0}/{1}"
+	asyncio_helper.FILE_URL = local_server
 
 bot = AsyncTeleBot(bot_token)
 
