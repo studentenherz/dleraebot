@@ -298,7 +298,7 @@ async def broadcast_handler(message):
 	if message.from_user.id == admin_id:
 		lst = message.html_text.split(' ', 1)
 		text = lst[1]
-		usrs = get_users_ids(subscribed=(lst[0] == '/broadcast'))
+		usrs = get_users_ids(only_subscribed=(lst[0] == '/broadcast'))
 
 		tasks = []
 		for usrid in usrs:
