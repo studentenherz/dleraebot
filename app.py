@@ -116,6 +116,7 @@ def recursive_unwrap(tag, v):
 	
 	for x in tag.contents:
 		tag_text = recursion(x)
+		# electroencefalografista is the longgest word in Spanish as for now, that's why it is here
 		if (len(v[-1]) + len(msg_continua_end) + len(tag_text) + len(MSG_PDD) + len('electroencefalografista') > MAX_MESSAGE_LENGTH):
 			v[-1] += msg_continua_end
 			v.append(msg_continua_start)
