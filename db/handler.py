@@ -156,8 +156,12 @@ def unblock_user(tgid):
 	update_user(tgid, blocked=False, strict=True)
 	logger.lessinfo(f'Unblocked user {tgid}')
 
-def get_users_ids(subscribed=True, blocked=False):
-	subs = get_users(subscribed=subscribed, blocked=blocked)
+def get_users_ids(only_subscribed=True, blocked=False):
+	if only_subscribed:
+		subs = get_users(subscribed=True, blocked=blocked)
+	else:
+		subs = get_users(blocked=blocked)
+
 	return [sub.tgid for sub in subs]
 
 def get_blocked_ids():
