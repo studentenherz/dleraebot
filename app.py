@@ -2,7 +2,7 @@ import bs4
 from bs4 import BeautifulSoup
 from telebot import types
 from telebot.util import MAX_MESSAGE_LENGTH 
-from credentials import bot_token, admin_id, bot_username, HOST_URL, local_server, bot_channel_username
+from credentials import bot_token, admin_id, bot_username, HOST_URL, local_server, bot_channel_username, bot_discuss_username
 import ast
 from db.handler import subscribe_user, unsubscribe_user, add_user, is_subscribed, get_users_ids, get_users_count, update_usage, get_usage_last, get_usage, block_user, unblock_user, get_blocked_ids
 import datetime
@@ -300,9 +300,11 @@ async def broadcast_handler(message):
 		text = lst[1]
 		usrs = get_users_ids(only_subscribed=(lst[0] == '/broadcast'))
 
+		keyboard = types.InlineKeyboardMarkup([[types.InlineKeyboardButton('¿Algún problema? Cuéntanos 🔧.', url=f'https://t.me/{bot_discuss_username}')]])
+
 		tasks = []
 		for usrid in usrs:
-			tasks.append(bot_send_message(usrid, text, parse_mode='HTML'))
+			tasks.append(bot_send_message(usrid, text, parse_mode='HTML', reply_markup=keyboard))
 		
 		await asyncio.gather(*tasks)
 
