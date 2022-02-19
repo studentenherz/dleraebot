@@ -4,7 +4,7 @@ from telebot import types
 from telebot.util import MAX_MESSAGE_LENGTH 
 from credentials import bot_token, admin_id, bot_username, HOST_URL, local_server, bot_channel_username
 import ast
-from db.handler import subscribe_user, unsubscribe_user, add_user, is_subscribed, get_susbcribed_ids, get_users_count, update_usage, get_usage_last, get_usage, block_user, unblock_user, get_blocked_ids
+from db.handler import subscribe_user, unsubscribe_user, add_user, is_subscribed, get_users_ids, get_users_count, update_usage, get_usage_last, get_usage, block_user, unblock_user, get_blocked_ids
 import datetime
 import logging
 import asyncio 
@@ -292,19 +292,20 @@ async def check_usage_handler(message):
 
 		await	bot_send_message(admin_id, text, parse_mode='HTML')
 
-@bot.message_handler(commands=['broadcast'])
+@bot.message_handler(commands=['broadcast_all', 'broadcast'])
 async def broadcast_handler(message):
 	if message.from_user.id == admin_id:
-		text = message.html_text.split(' ', 1)[1]
-		subs = get_susbcribed_ids()
+		lst = message.html_text.split(' ', 1)
+		text = lst[1]
+		usrs = get_users_ids(subscribed=(lst[0] == '/broadcast'))
 
 		tasks = []
-		for sub_id in subs:
-			tasks.append(bot_send_message(sub_id, text, parse_mode='HTML'))
+		for usrid in usrs:
+			tasks.append(bot_send_message(usrid, text, parse_mode='HTML'))
 		
 		await asyncio.gather(*tasks)
 
-		log_text = f'Broadcasted Message\n\n {text}\n\n to {len(subs)} users.'
+		log_text = f'Broadcasted Message\n\n {text}\n\n to {len(usrs)} users.'
 		logger.lessinfo(log_text)
 		await bot.send_message(admin_id,'<pre>Log: </pre>' + log_text, parse_mode='HTML')
 
@@ -398,7 +399,7 @@ async def handle_chosen_inline(result):
 async def broadcast_word_of_the_day(req = word_of_the_day):
 	# logger.lessinfo('Broadcasting')
 	await update_word_of_the_day()
-	subs = get_susbcribed_ids()
+	subs = get_users_ids()
 
 	tasks = []
 	for sub_id in subs:
