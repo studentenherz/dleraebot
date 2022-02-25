@@ -44,20 +44,20 @@ def recursive_unwrap(tag, v,  fullcontent = False):
 			v.append(msg_continua_start)
 		v[-1] += tag_text
 	
-def parse_response(r):
+def parse_response(r, fullcontent = False):
 	sp = BeautifulSoup(r, features='html.parser')
 	definitions = ['']
 	for article in sp.find('div', {'id': 'resultados'}).find_all('article', recursive=False):
-		recursive_unwrap(article, definitions)
+		recursive_unwrap(article, definitions, fullcontent)
 	return definitions
 
 
 
 # RAE queries
 
-async def get_definitions(entry, session):
+async def get_definitions(entry, session, fullcontent = False):
 	async with session.get(f'https://dle.rae.es/?w={entry}', headers=MOZILLA_HEADERS) as r:
-		return parse_response(await r.text())
+		return parse_response(await r.text(), fullcontent)
 
 async def get_list(entry, session):
 	async with await session.get(f'https://dle.rae.es/srv/keys?q={entry}', headers=MOZILLA_HEADERS) as r:
