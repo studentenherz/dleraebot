@@ -1,9 +1,5 @@
-import bs4
-from bs4 import BeautifulSoup
 from telebot import types
-from telebot.util import MAX_MESSAGE_LENGTH 
 from credentials import bot_token, admin_id, bot_username, HOST_URL, local_server, bot_channel_username, bot_discuss_username
-import ast
 from db.handler import subscribe_user, unsubscribe_user, add_user, is_subscribed, get_users_ids, get_users_count, update_usage, get_usage_last, get_usage, block_user, unblock_user, get_blocked_ids
 import datetime
 import logging
@@ -13,6 +9,7 @@ from telebot.async_telebot import AsyncTeleBot
 from telebot.asyncio_helper import ApiTelegramException
 from aiohttp import web
 from telebot import asyncio_helper
+from scrapping import get_definitions, get_list, get_random, get_word_of_the_day
 
 import logging
 
@@ -51,7 +48,6 @@ app = web.Application()
 
 # Definition of constants
 
-MOZILLA_HEADERS = {'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:91.0) Gecko/20100101 Firefox/91.0'}
 MSG_START = f'No es necesario que inicies un chat con el bot para que funcione, tampoco es necesario que lo agregues a ningún grupo o canal (/ayuda para más información), pero ya que estás aquí te cuento algunas cosas:\n\n - los comandos están en español porque es un bot para obtener definiciones de palabras en español 😅.\n\n -Hace un tiempo le escribí a la RAE (a través de un formulario en su página web, quizá nunca me leyeron) proponiéndoles la idea de que hicieran este bot, si quisieran problablemente Telegram les diese un @ más corto como @dle y la marca de bot oficial.\n\nPuedes ver el código del bot en [GitHub](https://github.com/studentenherz/dleraebot), y puedes recibir noticias acerca del bot en @{bot_channel_username}.'
 
 MSG_AYUDA = f'Simplemente, envía un mensaje de texto donde solo esté la palabra que deseas buscar, respetando su correcta escritura incluyendo tildes.\n\n Si quieres acceder rápidamente a una definición desde cualquier otro chat, escribe @{bot_username}  y luego la palabra que deseas buscar, en unos segundos aparecerán las opciones compatibles. Si no te queda claro puedes ver un gif de ejemplo con /ejemplo.\n\nEn las definiciones se pueden encontrar algunas abreviaturas cuyo significado puedes ver <a href="https://t.me/dleraebotchannel/10">aquí</a>.'
@@ -85,73 +81,6 @@ new_users = set()
 new_inline_searches = 0
 new_searches = 0
 actually_new_count = 0
-
-# Messages parsing
-
-def recursive_unwrap(tag, v):
-	telegram_supported_tags = ['b', 'strong', 'i', 'em', 'u', 'ins', 's', 'strike', 'del', 'code', 'pre']
-
-	def get_super(x):
-		normal = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-=()"
-		super_s = "ᴬᴮᶜᴰᴱᶠᴳᴴᴵᴶᴷᴸᴹᴺᴼᴾQᴿˢᵀᵁⱽᵂˣʸᶻᵃᵇᶜᵈᵉᶠᵍʰᶦʲᵏˡᵐⁿᵒᵖ۹ʳˢᵗᵘᵛʷˣʸᶻ⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾"
-		res = x.maketrans(''.join(normal), ''.join(super_s))
-		return x.translate(res)
-
-	def recursion(tag):
-		if (type(tag) == bs4.element.Tag):
-			fstr = ''
-			for x in tag.contents:
-				if x.name in telegram_supported_tags:
-					fstr += f'<{x.name}>{recursion(x)}</{x.name}>'
-				elif x.name == 'sup':
-					fstr += get_super(x.string)
-				else:
-					fstr += recursion(x)
-			return fstr
-		else:
-			return tag.string
-
-	msg_continua_end = '\n\n <pre>ver continuación...</pre>'
-	msg_continua_start = '<pre>... continuación</pre>\n\n'
-	
-	for x in tag.contents:
-		tag_text = recursion(x)
-		# electroencefalografista is the longgest word in Spanish as for now, that's why it is here
-		if (len(v[-1]) + len(msg_continua_end) + len(tag_text) + len(MSG_PDD) + len('electroencefalografista') > MAX_MESSAGE_LENGTH):
-			v[-1] += msg_continua_end
-			v.append(msg_continua_start)
-		v[-1] += tag_text
-	
-def parse_response(r):
-	sp = BeautifulSoup(r, features='html.parser')
-	definitions = ['']
-	for article in sp.find('div', {'id': 'resultados'}).find_all('article', recursive=False):
-		recursive_unwrap(article, definitions)
-	return definitions
-
-
-
-# RAE queries
-
-async def get_definitions(entry, session):
-	async with session.get(f'https://dle.rae.es/?w={entry}', headers=MOZILLA_HEADERS) as r:
-		return parse_response(await r.text())
-
-async def get_list(entry, session):
-	async with await session.get(f'https://dle.rae.es/srv/keys?q={entry}', headers=MOZILLA_HEADERS) as r:
-		return ast.literal_eval(await r.text())
-
-async def get_random():
-	async with aiohttp.ClientSession() as session:
-		async with session.get('https://dle.rae.es/?m=random', headers=MOZILLA_HEADERS) as r:
-			return parse_response(await r.text())
-
-async def get_word_of_the_day(session):
-	async with aiohttp.ClientSession() as session:
-		async with session.get('https://dle.rae.es/', headers=MOZILLA_HEADERS) as r:
-			sp = BeautifulSoup(await r.text(), features='html.parser')
-			return sp.find(id='wotd').text
-
 
 # Wrapper around bot.send_message for blocked users
 async def bot_send_message(*args, **kwargs):
