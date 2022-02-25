@@ -10,7 +10,7 @@ MOZILLA_HEADERS = {'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:91.
 
 # Messages parsing
 
-def recursive_unwrap(tag, v):
+def recursive_unwrap(tag, v,  fullcontent = False):
 	telegram_supported_tags = ['b', 'strong', 'i', 'em', 'u', 'ins', 's', 'strike', 'del', 'code', 'pre']
 
 	def get_super(x):
@@ -39,7 +39,7 @@ def recursive_unwrap(tag, v):
 	for x in tag.contents:
 		tag_text = recursion(x)
 		# electroencefalografista is the longgest word in Spanish as for now, that's why it is here
-		if (len(v[-1]) + len(msg_continua_end) + len(tag_text) + 21 + len('electroencefalografista') > MAX_MESSAGE_LENGTH):
+		if (len(v[-1]) + len(msg_continua_end) + len(tag_text) + 21 + len('electroencefalografista') > (MAX_MESSAGE_LENGTH if not fullcontent else  float('inf'))):
 			v[-1] += msg_continua_end
 			v.append(msg_continua_start)
 		v[-1] += tag_text
