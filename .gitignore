@@ -111,3 +111,5 @@ credentials.py
 images/
 log.txt
 database.db
+
+.vscode
