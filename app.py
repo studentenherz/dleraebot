@@ -101,7 +101,7 @@ async def inline_query_handler(query):
 	try:
 		res = [] # inline query results
 		async def add_res(i, entry, session):
-			definitions_list = await get_definitions(entry, session) # get definition, might be spread in several messages
+			definitions_list, = await get_definitions(entry, session) # get definition, might be spread in several messages
 			for idx, definition_text in enumerate(definitions_list):
 				definition = types.InputTextMessageContent(definition_text, parse_mode='HTML')
 				r = types.InlineQueryResultArticle(f'{i}_{idx}', title=entry, input_message_content=definition, description=definition_text)
@@ -154,7 +154,7 @@ async def update_word_of_the_day():
 
 	async with aiohttp.ClientSession() as session:
 		word_of_the_day = await get_word_of_the_day(session)
-		wotd_definitions = await get_definitions(word_of_the_day.split(',')[0], session) # ex.: cabalístico, ca
+		wotd_definitions, = await get_definitions(word_of_the_day.split(',')[0], session) # ex.: cabalístico, ca
 
 async def send_word_of_the_day(chat_id):
 	if word_of_the_day == '':
@@ -315,7 +315,7 @@ async def text_messages_handler(message):
 				list = await get_list(word, session)
 				if word in list:
 					await bot.send_chat_action(message.chat.id, 'typing')
-					definitions_list = await get_definitions(word, session)
+					definitions_list, = await get_definitions(word, session)
 					for definition_text in definitions_list:
 						await bot_send_message(message.chat.id, definition_text, parse_mode='HTML', reply_markup=REPLY_KEYBOARD)
 				else:
