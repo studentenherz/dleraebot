@@ -192,7 +192,8 @@ async def get_list(entry, session):
 async def get_random():
 	async with aiohttp.ClientSession() as session:
 		async with session.get('https://dle.rae.es/?m=random', headers=MOZILLA_HEADERS) as r:
-			return parse_response(await r.text())
+			res = await r.text()
+			return parse_response(res), conjugations(res)
 
 async def get_word_of_the_day(session):
 	async with aiohttp.ClientSession() as session:
