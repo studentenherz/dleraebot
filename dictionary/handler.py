@@ -32,10 +32,10 @@ async def get_list(entry, pg_session):
 	return res.scalars().all()
 
 async def get_definition(entry, pg_session):
-	res = await pg_session.execute(select(Word.definition, Word.conjugation).filter(Word.lemma.ilike(f'{entry}%')).order_by(Word.lemma).limit(RES_LIMIT))
-	first = res.first()
-	if first:
-		return first
+	res = await pg_session.execute(select(Word.definition, Word.conjugation).filter(Word.lemma == entry))
+	one = res.one()
+	if one:
+		return one
 	else:
 		return None, None
 
