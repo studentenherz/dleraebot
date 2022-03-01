@@ -1,8 +1,8 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.future import select
 from sqlalchemy.sql.expression import func
+from sqlalchemy import update
 from .models import Word
 import logging
 import os
@@ -23,7 +23,7 @@ logger.addHandler(log_file_handler)
 logger.addHandler(log_stream_handler)
 
 engine = create_async_engine(f'postgresql+asyncpg://{os.environ["DICT_DB_USER"]}:{os.environ["DICT_DB_PASSWORD"]}@{os.environ["DICT_DB_HOST"]}:{os.environ["DICT_DB_PORT"]}/{os.environ["DICT_DB_NAME"]}')
-async_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+async_pg_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
 RES_LIMIT = 10
 
@@ -41,4 +41,22 @@ async def get_definition(entry, pg_session):
 
 async def get_random(pg_session):
 	res = await pg_session.execute(select(Word.definition, Word.conjugation).order_by(func.random()).limit(RES_LIMIT))
-	return res.first()
+	first = res.first()
+	if first:
+		return first
+	else:
+		return None, None
+
+async def get_word_of_the_day(date, pg_session):
+	res = await pg_session.execute(select(Word.lemma).filter(Word.wotd == date))
+	first = res.scalars().first()
+	if first:
+		return first
+	else:
+		while True:
+			random = await pg_session.execute(select(Word.lemma, Word.wotd).order_by(func.random()).limit(RES_LIMIT))
+			canditdate = random.first()
+			if canditdate[1] == None:
+				await pg_session.execute(update(Word).where(Word.lemma == canditdate[0]).values(wotd = date))
+				await pg_session.commit()
+				return canditdate[0]

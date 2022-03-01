@@ -9,7 +9,8 @@ from telebot.async_telebot import AsyncTeleBot
 from telebot.asyncio_helper import ApiTelegramException
 from aiohttp import web
 from telebot import asyncio_helper
-from scrapping import get_definitions, get_list, get_random, get_word_of_the_day
+from telebot.util import smart_split
+from dictionary.handler import get_definition, get_list, get_random, async_pg_session, get_word_of_the_day
 
 import logging
 
@@ -44,6 +45,7 @@ if local_server != None:
 bot = AsyncTeleBot(bot_token)
 
 app = web.Application()
+pg_session = async_pg_session()
 
 
 # Definition of constants
@@ -100,28 +102,27 @@ async def bot_send_message(*args, **kwargs):
 async def inline_query_handler(query):
 	try:
 		res = [] # inline query results
-		async def add_res(i, entry, session):
-			definitions_list, = await get_definitions(entry, session) # get definition, might be spread in several messages
-			for idx, definition_text in enumerate(definitions_list):
+		async def add_res(i, entry, pg_session):
+			definition, _ = await get_definition(entry, pg_session) # get definition, might be spread in several messages
+			for idx, definition_text in enumerate(smart_split(definition)):
 				definition = types.InputTextMessageContent(definition_text, parse_mode='HTML')
 				r = types.InlineQueryResultArticle(f'{i}_{idx}', title=entry, input_message_content=definition, description=definition_text)
 				res.append((f'{i}_{idx}',r))
 
-		async with aiohttp.ClientSession() as session:
-			tasks = [] # concurrent tasks
-			words_list = await get_list(query.query, session)
-			for i, word in enumerate(words_list):
-				tasks.append(add_res(i, word, session))
-			await asyncio.gather(*tasks, return_exceptions=True)
-			
-			res.sort() # alphabetic sort
-			res = [x[1] for x in res]
+		tasks = [] # concurrent tasks
+		words_list = await get_list(query.query, pg_session)
+		for i, word in enumerate(words_list):
+			tasks.append(add_res(i, word, pg_session))
+		await asyncio.gather(*tasks, return_exceptions=True)
+		
+		res.sort() # alphabetic sort
+		res = [x[1] for x in res]
 
-			if len(res) == 0:
-				await bot.answer_inline_query(query.id, res, switch_pm_text=MSG_NO_RESULT, switch_pm_parameter='no_result')
-			else:
-				await bot.answer_inline_query(query.id, res)
-			
+		if len(res) == 0:
+			await bot.answer_inline_query(query.id, res, switch_pm_text=MSG_NO_RESULT, switch_pm_parameter='no_result')
+		else:
+			await bot.answer_inline_query(query.id, res)
+		
 	except Exception:
 		logger.exception('Something went wrong:\n')
 
@@ -145,16 +146,16 @@ async def ejemplo_handler(message):
 @bot.message_handler(commands=['aleatorio'])
 async def aleatorio_handler(message):
 	await bot.send_chat_action(message.chat.id, 'typing')
-	definitions = await get_random()
-	for page in definitions:
+	definition, _ = await get_random(pg_session)
+	for page in smart_split(definition):
 		await	bot_send_message(message.chat.id, page, parse_mode='HTML')
 
 async def update_word_of_the_day():
 	global word_of_the_day, wotd_definitions
 
-	async with aiohttp.ClientSession() as session:
-		word_of_the_day = await get_word_of_the_day(session)
-		wotd_definitions, = await get_definitions(word_of_the_day.split(',')[0], session) # ex.: cabalístico, ca
+	word_of_the_day = await get_word_of_the_day(datetime.date.today(), pg_session)
+	wotd_definition, _ = await get_definition(word_of_the_day, pg_session) # ex.: cabalístico, ca
+	wotd_definitions = smart_split(wotd_definition)
 
 async def send_word_of_the_day(chat_id):
 	if word_of_the_day == '':
@@ -311,15 +312,15 @@ async def text_messages_handler(message):
 		elif not message.via_bot or message.via_bot.id != (await bot.get_me()).id:
 			new_searches += 1 # incdrement searches
 			word = message.text.split()[0].lower()
-			async with aiohttp.ClientSession() as session:
-				list = await get_list(word, session)
-				if word in list:
-					await bot.send_chat_action(message.chat.id, 'typing')
-					definitions_list, = await get_definitions(word, session)
-					for definition_text in definitions_list:
-						await bot_send_message(message.chat.id, definition_text, parse_mode='HTML', reply_markup=REPLY_KEYBOARD)
-				else:
-					await bot_send_message(message.chat.id, MSG_NO_RESULT_DIRECT_MESSAGE.format(word), parse_mode='HTML',reply_markup=INLINE_KEYBOARD_BUSCAR_DEFINICION_CURRENT_CHAT)
+
+			list = await get_list(word, pg_session)
+			if word in list:
+				await bot.send_chat_action(message.chat.id, 'typing')
+				definition, _ = await get_definition(word, pg_session)
+				for definition_text in smart_split(definition):
+					await bot_send_message(message.chat.id, definition_text, parse_mode='HTML', reply_markup=REPLY_KEYBOARD)
+			else:
+				await bot_send_message(message.chat.id, MSG_NO_RESULT_DIRECT_MESSAGE.format(word), parse_mode='HTML',reply_markup=INLINE_KEYBOARD_BUSCAR_DEFINICION_CURRENT_CHAT)
 
 @bot.chosen_inline_handler(lambda query: True)
 async def handle_chosen_inline(result):
