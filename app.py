@@ -1,6 +1,5 @@
 from telebot import types
 from credentials import bot_token, admin_id, bot_username, HOST_URL, local_server, bot_channel_username, bot_discuss_username
-from db.handler import subscribe_user, unsubscribe_user, add_user, is_subscribed, get_users_ids, get_users_count, update_usage, get_usage_last, get_usage, block_user, unblock_user, get_blocked_ids
 import datetime
 import logging
 import asyncio 
@@ -9,7 +8,10 @@ from telebot.asyncio_helper import ApiTelegramException
 from aiohttp import web
 from telebot import asyncio_helper
 from telebot.util import smart_split
-from dictionary.handler import get_definition, get_list, get_random, async_pg_session, get_word_of_the_day
+from dictionary.handler import get_definition, get_list, get_random, get_word_of_the_day
+from dictionary.handler import async_pg_session as dict_session_maker
+from usage.handler import add_message, add_query, set_blocked, set_subscription, is_subscribed, get_users_count, get_users_ids, set_in_bot, get_usage_last
+from usage.handler import async_pg_session as usage_session_maker
 from random import random
 
 import logging
@@ -45,7 +47,10 @@ if local_server != None:
 bot = AsyncTeleBot(bot_token)
 
 app = web.Application()
-pg_session = async_pg_session()
+
+# db's sessions
+dict_pg_session = dict_session_maker()
+usage_pg_session = usage_session_maker()
 
 
 # Definition of constants
@@ -78,11 +83,6 @@ VER_EN_DLE_RAE_ES_PROBABILITY = 0.05
 word_of_the_day = ''
 wotd_definitions = []
 
-new_users = set()
-new_inline_searches = 0
-new_searches = 0
-actually_new_count = 0
-
 # Wrapper around bot.send_message for blocked users
 async def bot_send_message(*args, **kwargs):
 	try:
@@ -93,7 +93,7 @@ async def bot_send_message(*args, **kwargs):
 			id = int(args[0])
 		else:
 			id = int(kwargs['chat_id'])
-		block_user(id)
+		await set_in_bot(id, False, usage_pg_session)
 
 # Bot queries
 
@@ -101,7 +101,7 @@ async def bot_send_message(*args, **kwargs):
 async def inline_query_handler(query):
 	try:
 		res = [] # inline query results
-		words_list = await get_list(query.query, pg_session)
+		words_list = await get_list(query.query, dict_pg_session)
 		
 		for word, definition, conj in words_list:
 			for idx, definition_text in enumerate(smart_split(definition)):
@@ -118,33 +118,36 @@ async def inline_query_handler(query):
 
 @bot.message_handler(commands=['start'])
 async def start_handler(message):
+	await add_message(message.from_user.id, usage_pg_session)
 	if message.chat.type == 'private':
 		if 'no_result' in message.text:
 			await bot_send_message(message.chat.id, MSG_NO_RESULT_LONG, parse_mode='markdown', disable_web_page_preview=True, reply_markup=INLINE_KEYBOARD_BUSCAR_DEFINICION)
 		else:
 			await bot_send_message(message.chat.id, MSG_START, parse_mode='markdown', disable_web_page_preview=True, reply_markup=REPLY_KEYBOARD)
-			new_users.add(message.from_user.id)
 
 @bot.message_handler(commands=['ayuda', 'help'])
 async def help_handler(message):
+	await add_message(message.from_user.id, usage_pg_session)
 	await	bot_send_message(message.chat.id, MSG_AYUDA, reply_markup=INLINE_KEYBOARD_BUSCAR_DEFINICION, parse_mode='HTML', disable_web_page_preview=True)
 
 @bot.message_handler(commands=['ejemplo'])
 async def ejemplo_handler(message):
+	await add_message(message.from_user.id, usage_pg_session)
 	await bot.send_animation(message.chat.id, MSG_EJEMPLO)
 
 @bot.message_handler(commands=['aleatorio'])
 async def aleatorio_handler(message):
+	await add_message(message.from_user.id, usage_pg_session)
 	await bot.send_chat_action(message.chat.id, 'typing')
-	definition, _ = await get_random(pg_session)
+	definition, _ = await get_random(dict_pg_session)
 	for page in smart_split(definition):
 		await	bot_send_message(message.chat.id, page, parse_mode='HTML')
 
 async def update_word_of_the_day():
 	global word_of_the_day, wotd_definitions
 
-	word_of_the_day = await get_word_of_the_day(datetime.date.today(), pg_session)
-	wotd_definition, _ = await get_definition(word_of_the_day, pg_session) # ex.: cabalístico, ca
+	word_of_the_day = await get_word_of_the_day(datetime.date.today(), dict_pg_session)
+	wotd_definition, _ = await get_definition(word_of_the_day, dict_pg_session) # ex.: cabalístico, ca
 	wotd_definitions = smart_split(wotd_definition)
 
 async def send_word_of_the_day(chat_id):
@@ -158,14 +161,16 @@ async def send_word_of_the_day(chat_id):
 
 @bot.message_handler(commands=['pdd'])
 async def pdd_handler(message):
+	await add_message(message.from_user.id, usage_pg_session)
 	await send_word_of_the_day(message.chat.id)
 
 @bot.message_handler(commands=['suscripcion'])
 async def suscripcion_handler(message):
+	await add_message(message.from_user.id, usage_pg_session)
 	if message.chat.type == 'private':
 		tgid = message.from_user.id
 		first_name = message.from_user.first_name
-		is_sus = is_subscribed(tgid)
+		is_sus = await is_subscribed(tgid, usage_pg_session)
 		text = MSG_PDD_SUSB.format(first_name, 'SÍ' if is_sus else 'NO')
 		keyboard = types.InlineKeyboardMarkup()
 		keyboard.row(types.InlineKeyboardButton('Desuscribirme' if is_sus else '¡Suscribirme!', callback_data='__desubs' if is_sus else '__subs'))
@@ -193,7 +198,7 @@ async def check_usage_handler(message):
 			except:
 				ndays = 1
 		
-		usage_list = get_usage_last(ndays)
+		usage_list = await get_usage_last(ndays, usage_pg_session)
 
 		text = '<pre>     ....:: Usage Stats ::....      \n\n   day   | users | messages | inline\n------------------------------------</pre>\n'
 		
@@ -208,8 +213,8 @@ async def check_usage_handler(message):
 
 			text += f'<pre>{u.day.strftime("%d/%m/%y")} | {users} | {messages} | {queries}\n</pre>\n'
 
-		text += f'<pre>Total users: {get_users_count()}</pre>\n'
-		text += f'<pre>Subscribed users: {get_users_count(subscribed=True)}</pre>\n'
+		text += f'<pre>Total users: {await get_users_count(usage_pg_session)}</pre>\n'
+		text += f'<pre>Subscribed users: {await get_users_count(usage_pg_session, subscribed=True)}</pre>\n'
 
 		await	bot_send_message(admin_id, text, parse_mode='HTML')
 
@@ -218,7 +223,7 @@ async def broadcast_handler(message):
 	if message.from_user.id == admin_id:
 		lst = message.html_text.split(' ', 1)
 		text = lst[1]
-		usrs = get_users_ids(only_subscribed=(lst[0] == '/broadcast'))
+		usrs = await get_users_ids(subscribed=(True if lst[0] == '/broadcast' else None), in_bot=True, blocked=False)
 
 		keyboard = types.InlineKeyboardMarkup([[types.InlineKeyboardButton('¿Algún problema? Cuéntanos 🔧.', url=f'https://t.me/{bot_discuss_username}')]])
 
@@ -235,7 +240,7 @@ async def broadcast_handler(message):
 @bot.message_handler(commands=['blocked'])
 async def get_blocked_handler(message):
 	if message.from_user.id == admin_id:
-		list = get_blocked_ids()
+		list = await get_users_ids(usage_pg_session, blocked=True)
 
 		text = '<pre>.::Blocked users::.'
 		for blocked_id in list:
@@ -249,7 +254,7 @@ async def block_user_handler(message):
 	if message.from_user.id == admin_id:
 		try:
 			id = int(message.text.split(' ', 1)[1])
-			block_user(id)
+			set_blocked(id, True, usage_pg_session)
 		except Exception as e:
 			logger.error(f'Bad user id\n {e}')
 			await bot.send_message(admin_id, '<pre>Bad user id</pre>', parse_mode='HTML')
@@ -259,7 +264,7 @@ async def unblock_user_handler(message):
 	if message.from_user.id == admin_id:
 		try:
 			id = int(message.text.split(' ', 1)[1])
-			unblock_user(id)
+			set_blocked(id, False, usage_pg_session)
 		except Exception as e:
 			logger.error(f'Bad user id\n {e}')
 			await bot.send_message(admin_id, '<pre>Bad user id</pre>', parse_mode='HTML')
@@ -273,11 +278,11 @@ async def handle_callback_query(query):
 		query_answer= ''
 
 		if query.data == '__subs':
-			subscribe_user(tgid)
+			await set_subscription(tgid, True, usage_pg_session)
 			new_text += '\n\n ¡Listo!, te has suscrito.'
 			query_answer = '✅ ¡Te has suscrito!'
 		if query.data == '__desubs':
-			unsubscribe_user(tgid)
+			await set_subscription(tgid, False, usage_pg_session)
 			new_text += '\n\n ¡Listo!, ya no estás suscrito.'
 			query_answer = '❌ Te has desuscrito.'
 
@@ -293,17 +298,14 @@ keyboard_command_function = {
 
 @bot.message_handler(content_types=['text'])
 async def text_messages_handler(message):
-	global new_searches, new_users
-
 	if message.chat.type == 'private':
-		new_users.add(message.from_user.id) # add user
 		if message.text in keyboard_command_function:
 			await keyboard_command_function[message.text](message)
 		elif not message.via_bot or message.via_bot.id != (await bot.get_me()).id:
-			new_searches += 1 # incdrement searches
+			await add_message(message.from_user.id, usage_pg_session)
 			word = message.text.split()[0].lower()
 
-			definition, _ = await get_definition(word, pg_session)
+			definition, _ = await get_definition(word, dict_pg_session)
 			if definition:
 				await bot.send_chat_action(message.chat.id, 'typing')
 				for definition_text in smart_split(definition):
@@ -318,9 +320,7 @@ async def text_messages_handler(message):
 
 @bot.chosen_inline_handler(lambda query: True)
 async def handle_chosen_inline(result):
-	global new_users, new_inline_searches
-	new_users.add(result.from_user.id) # add user
-	new_inline_searches += 1 # increment inline searches
+	await add_query(result.from_user.id, usage_pg_session)
 
 
 async def broadcast_word_of_the_day(req = word_of_the_day):
@@ -340,34 +340,6 @@ async def broadcast_word_of_the_day(req = word_of_the_day):
 
 	return web.Response()
 
-async def update_database(req = None):
-	# logger.lessinfo('Updating database')
-	global actually_new_count, new_searches, new_inline_searches
-
-	# update users
-	for utgid in new_users:
-		actually_new_count += add_user(utgid)
-
-	#update usage
-	is_new_day = update_usage(new_searches, new_inline_searches, actually_new_count)
-
-	if is_new_day == 1:
-		new_searches = 0
-		new_inline_searches = 0
-		actually_new_count = 0
-		new_users.clear()
-
-	return web.Response()
-
-def init():
-	global actually_new_count, new_searches, new_inline_searches
-	today_usage = get_usage(datetime.date.today())
-
-	if today_usage:
-		actually_new_count = today_usage.users
-		new_inline_searches = today_usage.queries
-		new_searches = today_usage.messages
-
 # Webapp 
 async def handle_webhook(request):
 	request_body_dict = await request.json()
@@ -381,11 +353,9 @@ async def handle_set_webhook(request):
 	return web.Response(text='Webhook set (hopefully)!')
 
 app.router.add_post(f'/{bot_token}', handle_webhook)
-app.router.add_get(f'/{bot_token}/updateDB', update_database)
 app.router.add_get(f'/{bot_token}/broadcastWOTD', broadcast_word_of_the_day)
 app.router.add_get(f'/{bot_token}/setWebhook', handle_set_webhook)
 
-init()
 
 if __name__ == '__main__':
 	web.run_app(
