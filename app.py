@@ -181,9 +181,9 @@ async def check_users_handler(message):
 	if message.from_user.id == admin_id:
 		commands = message.text.split(' ') # /users command
 		if len(commands) < 2:
-			n = get_users_count()
+			n = await get_users_count(usage_pg_session)
 		elif commands[1] == 's':
-			n = get_users_count(subscribed=True)
+			n = await get_users_count(usage_pg_session, subscribed=True)
 		await	bot_send_message(admin_id, f'{n} users')
 
 @bot.message_handler(commands=['usage'])
@@ -223,7 +223,7 @@ async def broadcast_handler(message):
 	if message.from_user.id == admin_id:
 		lst = message.html_text.split(' ', 1)
 		text = lst[1]
-		usrs = await get_users_ids(subscribed=(True if lst[0] == '/broadcast' else None), in_bot=True, blocked=False)
+		usrs = await get_users_ids(usage_pg_session, subscribed=(True if lst[0] == '/broadcast' else None), in_bot=True, blocked=False)
 
 		keyboard = types.InlineKeyboardMarkup([[types.InlineKeyboardButton('¿Algún problema? Cuéntanos 🔧.', url=f'https://t.me/{bot_discuss_username}')]])
 
@@ -254,7 +254,7 @@ async def block_user_handler(message):
 	if message.from_user.id == admin_id:
 		try:
 			id = int(message.text.split(' ', 1)[1])
-			set_blocked(id, True, usage_pg_session)
+			await set_blocked(id, True, usage_pg_session)
 		except Exception as e:
 			logger.error(f'Bad user id\n {e}')
 			await bot.send_message(admin_id, '<pre>Bad user id</pre>', parse_mode='HTML')
@@ -264,7 +264,7 @@ async def unblock_user_handler(message):
 	if message.from_user.id == admin_id:
 		try:
 			id = int(message.text.split(' ', 1)[1])
-			set_blocked(id, False, usage_pg_session)
+			await set_blocked(id, False, usage_pg_session)
 		except Exception as e:
 			logger.error(f'Bad user id\n {e}')
 			await bot.send_message(admin_id, '<pre>Bad user id</pre>', parse_mode='HTML')
@@ -326,7 +326,7 @@ async def handle_chosen_inline(result):
 async def broadcast_word_of_the_day(req = word_of_the_day):
 	# logger.lessinfo('Broadcasting')
 	await update_word_of_the_day()
-	subs = get_users_ids()
+	subs = await get_users_ids(usage_pg_session, subscribed=True)
 
 	tasks = []
 	for sub_id in subs:
