@@ -28,15 +28,14 @@ async_pg_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSess
 RES_LIMIT = 10
 
 async def get_list(entry, pg_session):
-	res = await pg_session.execute(select(Word.lemma).filter(Word.lemma.ilike(f'{entry}%')).order_by(Word.lemma).limit(RES_LIMIT))
-	return res.scalars().all()
+	res = await pg_session.execute(select(Word.lemma, Word.definition, Word.definition).filter(Word.lemma.ilike(f'{entry}%')).order_by(Word.lemma).limit(RES_LIMIT))
+	return res.all()
 
 async def get_definition(entry, pg_session):
 	res = await pg_session.execute(select(Word.definition, Word.conjugation).filter(Word.lemma == entry))
-	one = res.one()
-	if one:
-		return one
-	else:
+	try:
+		return res.one()
+	except:
 		return None, None
 
 async def get_random(pg_session):

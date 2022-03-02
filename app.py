@@ -101,22 +101,13 @@ async def bot_send_message(*args, **kwargs):
 async def inline_query_handler(query):
 	try:
 		res = [] # inline query results
-		async def add_res(i, entry, pg_session):
-			definition, _ = await get_definition(entry, pg_session) # get definition, might be spread in several messages
-			for idx, definition_text in enumerate(smart_split(definition)):
-				definition = types.InputTextMessageContent(definition_text, parse_mode='HTML')
-				r = types.InlineQueryResultArticle(f'{i}_{idx}', title=entry, input_message_content=definition, description=definition_text)
-				res.append((f'{i}_{idx}',r))
-
-		tasks = [] # concurrent tasks
 		words_list = await get_list(query.query, pg_session)
-		for i, word in enumerate(words_list):
-			tasks.append(add_res(i, word, pg_session))
-		await asyncio.gather(*tasks, return_exceptions=True)
 		
-		res.sort() # alphabetic sort
-		res = [x[1] for x in res]
-
+		for word, definition, conj in words_list:
+			for idx, definition_text in enumerate(smart_split(definition)):
+				definition_page = types.InputTextMessageContent(definition_text, parse_mode='HTML')
+				res.append(types.InlineQueryResultArticle(f'{word}_{idx}', title=word, input_message_content=definition_page, description=definition_text))
+		
 		if len(res) == 0:
 			await bot.answer_inline_query(query.id, res, switch_pm_text=MSG_NO_RESULT, switch_pm_parameter='no_result')
 		else:
@@ -312,10 +303,9 @@ async def text_messages_handler(message):
 			new_searches += 1 # incdrement searches
 			word = message.text.split()[0].lower()
 
-			list = await get_list(word, pg_session)
-			if word in list:
+			definition, _ = await get_definition(word, pg_session)
+			if definition:
 				await bot.send_chat_action(message.chat.id, 'typing')
-				definition, _ = await get_definition(word, pg_session)
 				for definition_text in smart_split(definition):
 					inline_kb = None
 					if random() < VER_EN_DLE_RAE_ES_PROBABILITY:
