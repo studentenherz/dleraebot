@@ -317,6 +317,9 @@ async def text_messages_handler(message):
 				inline_kb = types.InlineKeyboardMarkup([[types.InlineKeyboardButton('Probar inline', switch_inline_query_current_chat=f''),
 				types.InlineKeyboardButton('Buscar en dle.rae.es', url=f'https://dle.rae.es/{word}') ]])
 				await bot_send_message(message.chat.id, MSG_NO_RESULT_DIRECT_MESSAGE.format(word), parse_mode='HTML',reply_markup=inline_kb)
+	elif message.chat.type in ['group', 'supergroup', 'channel']:
+		await bot.leave_chat(message.chat.id)
+		logger.lessinfo(f'Left chat {message.chat}')
 
 @bot.chosen_inline_handler(lambda query: True)
 async def handle_chosen_inline(result):
