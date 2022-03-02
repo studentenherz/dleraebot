@@ -4,13 +4,13 @@ from db.handler import subscribe_user, unsubscribe_user, add_user, is_subscribed
 import datetime
 import logging
 import asyncio 
-import aiohttp
 from telebot.async_telebot import AsyncTeleBot
 from telebot.asyncio_helper import ApiTelegramException
 from aiohttp import web
 from telebot import asyncio_helper
 from telebot.util import smart_split
 from dictionary.handler import get_definition, get_list, get_random, async_pg_session, get_word_of_the_day
+from random import random
 
 import logging
 
@@ -57,7 +57,7 @@ MSG_EJEMPLO = 'CgACAgEAAxkBAAMWYSSF83hFhvdaCGrKA8S7RIogjn8AAqcCAAI3gSBFIvdrsiI9V
 MSG_NO_RESULT = 'No se han encontrado resultados'
 MSG_NO_RESULT_LONG = 'Lo siento, no se han encontrado resultados. Intenta letra por letra y quizá la palabra que buscas esté entre las opciones.'
 MSG_PDD = '📖 Palabra del día\n\n {}'
-MSG_NO_RESULT_DIRECT_MESSAGE = 'Lo siento, no se han encontrado resultados para «{}». Debes enviar un mensaje de texto que contenga solo el término que deseas buscar y respetando su correcta escritura incluyendo tildes. Si no sabes cómo se escribe intenta el modo <i>inline</i> donde verás sugerencias mientras escribes.'
+MSG_NO_RESULT_DIRECT_MESSAGE = 'Lo siento, no se han encontrado resultados para «{}». Debes enviar un mensaje de texto que contenga solo el término que deseas buscar y respetando su correcta escritura incluyendo tildes. Si no sabes cómo se escribe intenta el modo <i>inline</i> donde verás sugerencias mientras escribes. También puedes probar buscar directamente en la página de la RAE.'
 MSG_PDD_SUSB = '{}, aquí puedes manejar tu suscripción a la 📖 <i>Palabra del día</i> para que la recibas diariamente. Actualmente {} estás suscrito, pero si lo prefieres puedes cambiar.'
 
 KEY_PDD = '📖 Palabra del día'
@@ -72,8 +72,7 @@ REPLY_KEYBOARD.row(types.KeyboardButton(KEY_SUSCRIPCION), types.KeyboardButton(K
 INLINE_KEYBOARD_BUSCAR_DEFINICION = types.InlineKeyboardMarkup()
 INLINE_KEYBOARD_BUSCAR_DEFINICION.row(types.InlineKeyboardButton('Buscar definición', switch_inline_query=f''))
 
-INLINE_KEYBOARD_BUSCAR_DEFINICION_CURRENT_CHAT = types.InlineKeyboardMarkup()
-INLINE_KEYBOARD_BUSCAR_DEFINICION_CURRENT_CHAT.row(types.InlineKeyboardButton('Buscar definición', switch_inline_query_current_chat=f''))
+VER_EN_DLE_RAE_ES_PROBABILITY = 0.05
 
 # Global variables
 word_of_the_day = ''
@@ -178,7 +177,7 @@ async def suscripcion_handler(message):
 		is_sus = is_subscribed(tgid)
 		text = MSG_PDD_SUSB.format(first_name, 'SÍ' if is_sus else 'NO')
 		keyboard = types.InlineKeyboardMarkup()
-		keyboard.row(types.InlineKeyboardButton('Desuscribirme' if is_sus else '¡Suscribirme!', callback_data='desubs' if is_sus else 'subs'))
+		keyboard.row(types.InlineKeyboardButton('Desuscribirme' if is_sus else '¡Suscribirme!', callback_data='__desubs' if is_sus else '__subs'))
 		await	bot_send_message(message.chat.id, text, reply_markup=keyboard, parse_mode='HTML')
 
 @bot.message_handler(commands=['users'])
@@ -277,16 +276,16 @@ async def unblock_user_handler(message):
 
 @bot.callback_query_handler(lambda query: True)
 async def handle_callback_query(query):
-	if query.data in ['desubs', 'subs']:
+	if query.data in ['__desubs', '__subs']:
 		tgid = query.from_user.id
 		new_text = query.message.text
 		query_answer= ''
 
-		if query.data == 'subs':
+		if query.data == '__subs':
 			subscribe_user(tgid)
 			new_text += '\n\n ¡Listo!, te has suscrito.'
 			query_answer = '✅ ¡Te has suscrito!'
-		if query.data == 'desubs':
+		if query.data == '__desubs':
 			unsubscribe_user(tgid)
 			new_text += '\n\n ¡Listo!, ya no estás suscrito.'
 			query_answer = '❌ Te has desuscrito.'
@@ -318,9 +317,14 @@ async def text_messages_handler(message):
 				await bot.send_chat_action(message.chat.id, 'typing')
 				definition, _ = await get_definition(word, pg_session)
 				for definition_text in smart_split(definition):
-					await bot_send_message(message.chat.id, definition_text, parse_mode='HTML', reply_markup=REPLY_KEYBOARD)
+					inline_kb = None
+					if random() < VER_EN_DLE_RAE_ES_PROBABILITY:
+						inline_kb = types.InlineKeyboardMarkup([[types.InlineKeyboardButton('Ver en dle.rae.es', url=f'https://dle.rae.es/{word}')]])
+					await bot_send_message(message.chat.id, definition_text, parse_mode='HTML', reply_markup=inline_kb)
 			else:
-				await bot_send_message(message.chat.id, MSG_NO_RESULT_DIRECT_MESSAGE.format(word), parse_mode='HTML',reply_markup=INLINE_KEYBOARD_BUSCAR_DEFINICION_CURRENT_CHAT)
+				inline_kb = types.InlineKeyboardMarkup([[types.InlineKeyboardButton('Probar inline', switch_inline_query_current_chat=f''),
+				types.InlineKeyboardButton('Buscar en dle.rae.es', url=f'https://dle.rae.es/{word}') ]])
+				await bot_send_message(message.chat.id, MSG_NO_RESULT_DIRECT_MESSAGE.format(word), parse_mode='HTML',reply_markup=inline_kb)
 
 @bot.chosen_inline_handler(lambda query: True)
 async def handle_chosen_inline(result):
