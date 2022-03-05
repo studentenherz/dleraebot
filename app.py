@@ -333,6 +333,12 @@ async def handle_everything_else(message):
 async def handle_chosen_inline(result):
 	await add_query(result.from_user.id, usage_pg_session)
 
+@bot.my_chat_member_handler()
+async def handle_my_char_member(change):
+	if change.new_chat_member.status == 'kicked':
+		await set_in_bot(change.chat.id, False, usage_pg_session)
+	elif change.new_chat_member.status == 'member':
+		await set_in_bot(change.chat.id, False, usage_pg_session)
 
 async def broadcast_word_of_the_day(req = word_of_the_day):
 	# logger.lessinfo('Broadcasting')
