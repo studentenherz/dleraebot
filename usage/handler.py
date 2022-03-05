@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 log_formatter = logging.Formatter('▸ %(asctime)s:%(name)s:%(levelname)s: %(message)s')
-log_file_handler = logging.FileHandler('getfulldle.log')
+log_file_handler = logging.FileHandler('usage.log')
 log_file_handler.setLevel(logging.ERROR)
 log_file_handler.setFormatter(log_formatter)
 
