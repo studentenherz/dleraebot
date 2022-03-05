@@ -23,7 +23,7 @@ class MyLogger(logging.getLoggerClass()):
 
 				logging.addLevelName(logging.INFO + 5, 'LESSINFO')
 
-		def verbose(self, msg, *args, **kwargs):
+		def lessinfo(self, msg, *args, **kwargs):
 				if self.isEnabledFor(LESSINFO):
 						self._log(LESSINFO, msg, args, **kwargs)
 
@@ -296,7 +296,7 @@ keyboard_command_function = {
 	KEY_SUSCRIPCION: suscripcion_handler
 }
 
-@bot.message_handler(content_types=['text'])
+@bot.message_handler(content_types=['text'], chat_types=['private'])
 async def text_messages_handler(message):
 	if message.chat.type == 'private':
 		if message.text in keyboard_command_function:
@@ -317,9 +317,17 @@ async def text_messages_handler(message):
 				inline_kb = types.InlineKeyboardMarkup([[types.InlineKeyboardButton('Probar inline', switch_inline_query_current_chat=f''),
 				types.InlineKeyboardButton('Buscar en dle.rae.es', url=f'https://dle.rae.es/{word}') ]])
 				await bot_send_message(message.chat.id, MSG_NO_RESULT_DIRECT_MESSAGE.format(word), parse_mode='HTML',reply_markup=inline_kb)
-	elif message.chat.type in ['group', 'supergroup', 'channel']:
-		await bot.leave_chat(message.chat.id)
-		logger.lessinfo(f'Left chat {message.chat}')
+
+@bot.channel_post_handler()
+async def handle_channel(message):
+	await bot.leave_chat(message.chat.id)
+	logger.lessinfo(f'Left chat {message.chat.id}')
+
+@bot.message_handler(chat_types=['group', 'supergroup'], content_types=['audio', 'photo', 'voice', 'video', 'document',
+            'text', 'location', 'contact', 'sticker', 'text'])
+async def handle_everything_else(message):
+	await bot.leave_chat(message.chat.id)
+	logger.lessinfo(f'Left chat {message.chat.id}')
 
 @bot.chosen_inline_handler(lambda query: True)
 async def handle_chosen_inline(result):
