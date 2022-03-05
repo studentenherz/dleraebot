@@ -329,7 +329,7 @@ async def handle_chosen_inline(result):
 async def broadcast_word_of_the_day(req = word_of_the_day):
 	# logger.lessinfo('Broadcasting')
 	await update_word_of_the_day()
-	subs = await get_users_ids(usage_pg_session, subscribed=True)
+	subs = await get_users_ids(usage_pg_session, subscribed=True, blocked=False, in_bot=True)
 
 	tasks = []
 	for sub_id in subs:
