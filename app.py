@@ -57,8 +57,7 @@ usage_pg_session = usage_session_maker()
 
 MSG_START = f'No es necesario que inicies un chat con el bot para que funcione, tampoco es necesario que lo agregues a ningún grupo o canal (/ayuda para más información), pero ya que estás aquí te cuento algunas cosas:\n\n - los comandos están en español porque es un bot para obtener definiciones de palabras en español 😅.\n\n -Hace un tiempo le escribí a la RAE (a través de un formulario en su página web, quizá nunca me leyeron) proponiéndoles la idea de que hicieran este bot, si quisieran problablemente Telegram les diese un @ más corto como @dle y la marca de bot oficial.\n\nPuedes ver el código del bot en [GitHub](https://github.com/studentenherz/dleraebot), y puedes recibir noticias acerca del bot en @{bot_channel_username}.'
 
-MSG_AYUDA = f'Simplemente, envía un mensaje de texto donde solo esté la palabra que deseas buscar, respetando su correcta escritura incluyendo tildes.\n\n Si quieres acceder rápidamente a una definición desde cualquier otro chat, escribe @{bot_username}  y luego la palabra que deseas buscar, en unos segundos aparecerán las opciones compatibles. Si no te queda claro puedes ver un gif de ejemplo con /ejemplo.\n\nEn las definiciones se pueden encontrar algunas abreviaturas cuyo significado puedes ver <a href="https://t.me/dleraebotchannel/10">aquí</a>.'
-MSG_EJEMPLO = 'CgACAgEAAxkBAAMWYSSF83hFhvdaCGrKA8S7RIogjn8AAqcCAAI3gSBFIvdrsiI9VIwgBA'
+MSG_AYUDA = f'Simplemente, envía un mensaje de texto donde solo esté la palabra que deseas buscar, respetando su correcta escritura incluyendo tildes.\n\nSi quieres acceder rápidamente a una definición desde cualquier otro chat, escribe @{bot_username}  y luego la palabra que deseas buscar, en unos segundos aparecerán las opciones compatibles. En <a href="https://t.me/dleraebotchannel/32">esta publicación</a> se muestra cómo.\n\nEn las definiciones se pueden encontrar algunas abreviaturas cuyo significado puedes ver <a href="https://t.me/dleraebotchannel/10">aquí</a>.\n\n'
 MSG_NO_RESULT = 'No se han encontrado resultados'
 MSG_NO_RESULT_LONG = 'Lo siento, no se han encontrado resultados. Intenta letra por letra y quizá la palabra que buscas esté entre las opciones.'
 MSG_PDD = '📖 Palabra del día\n\n {}'
@@ -128,12 +127,7 @@ async def start_handler(message):
 @bot.message_handler(commands=['ayuda', 'help'])
 async def help_handler(message):
 	await add_message(message.from_user.id, usage_pg_session)
-	await	bot_send_message(message.chat.id, MSG_AYUDA, reply_markup=INLINE_KEYBOARD_BUSCAR_DEFINICION, parse_mode='HTML', disable_web_page_preview=True)
-
-@bot.message_handler(commands=['ejemplo'])
-async def ejemplo_handler(message):
-	await add_message(message.from_user.id, usage_pg_session)
-	await bot.send_animation(message.chat.id, MSG_EJEMPLO)
+	await	bot_send_message(message.chat.id, MSG_AYUDA, reply_markup=INLINE_KEYBOARD_BUSCAR_DEFINICION, parse_mode='HTML')
 
 @bot.message_handler(commands=['aleatorio'])
 async def aleatorio_handler(message):
