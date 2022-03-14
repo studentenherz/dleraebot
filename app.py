@@ -297,7 +297,7 @@ async def text_messages_handler(message):
 			await keyboard_command_function[message.text](message)
 		elif not message.via_bot or message.via_bot.id != (await bot.get_me()).id:
 			await add_message(message.from_user.id, usage_pg_session)
-			word = message.text.split()[0]
+			word = message.text
 
 			definition, _ = await get_definition(word, dict_pg_session)
 			if not definition:
